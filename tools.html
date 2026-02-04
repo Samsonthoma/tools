@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Tool Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .timer-circle {
+            transition: stroke-dashoffset 0.5s linear;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800">
+
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-extrabold text-slate-900 mb-2">Utility Toolkit</h1>
+            <p class="text-slate-500">Fast, local, and private tools for your daily tasks.</p>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="flex flex-wrap justify-center gap-2 mb-8" id="main-nav">
+            <button onclick="switchTab('converter')" class="nav-btn px-6 py-2 rounded-full font-medium bg-blue-600 text-white shadow-lg transition-all" data-tab="converter">
+                <i class="fas fa-exchange-alt mr-2"></i>Converter
+            </button>
+            <button onclick="switchTab('password')" class="nav-btn px-6 py-2 rounded-full font-medium bg-white text-slate-600 hover:bg-slate-100 transition-all" data-tab="password">
+                <i class="fas fa-key mr-2"></i>Password Gen
+            </button>
+            <button onclick="switchTab('markdown')" class="nav-btn px-6 py-2 rounded-full font-medium bg-white text-slate-600 hover:bg-slate-100 transition-all" data-tab="markdown">
+                <i class="fab fa-markdown mr-2"></i>Markdown
+            </button>
+            <button onclick="switchTab('timer')" class="nav-btn px-6 py-2 rounded-full font-medium bg-white text-slate-600 hover:bg-slate-100 transition-all" data-tab="timer">
+                <i class="fas fa-stopwatch mr-2"></i>Timer
+            </button>
+        </nav>
+
+        <main class="glass-card rounded-2xl shadow-xl p-6 md:p-10">
+            
+            <!-- 1. Unit Converter -->
+            <section id="converter" class="tab-content active">
+                <div class="max-w-2xl mx-auto">
+                    <h2 class="text-2xl font-bold mb-6 flex items-center">
+                        <i class="fas fa-exchange-alt text-blue-500 mr-3"></i> Unit Converter
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">From</label>
+                            <input type="number" id="unit-input" placeholder="Value" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none mb-4">
+                            <select id="unit-from" class="w-full p-3 border rounded-lg bg-white">
+                                <optgroup label="Length">
+                                    <option value="m">Meters</option>
+                                    <option value="km">Kilometers</option>
+                                    <option value="ft">Feet</option>
+                                    <option value="mi">Miles</option>
+                                </optgroup>
+                                <optgroup label="Weight">
+                                    <option value="kg">Kilograms</option>
+                                    <option value="lb">Pounds</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="flex flex-col justify-end">
+                            <label class="block text-sm font-semibold mb-2">To</label>
+                            <div id="unit-output" class="w-full p-3 bg-slate-100 border rounded-lg font-mono text-xl mb-4 h-[50px] flex items-center">0</div>
+                            <select id="unit-to" class="w-full p-3 border rounded-lg bg-white">
+                                <optgroup label="Length">
+                                    <option value="m">Meters</option>
+                                    <option value="km" selected>Kilometers</option>
+                                    <option value="ft">Feet</option>
+                                    <option value="mi">Miles</option>
+                                </optgroup>
+                                <optgroup label="Weight">
+                                    <option value="kg">Kilograms</option>
+                                    <option value="lb">Pounds</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Password Generator -->
+            <section id="password" class="tab-content">
+                <div class="max-w-2xl mx-auto">
+                    <h2 class="text-2xl font-bold mb-6 flex items-center">
+                        <i class="fas fa-key text-yellow-500 mr-3"></i> Password Generator
+                    </h2>
+                    <div class="bg-slate-900 text-blue-400 p-6 rounded-xl mb-6 relative group">
+                        <div id="password-display" class="text-2xl font-mono break-all pr-12">P@ssw0rd123!</div>
+                        <button onclick="copyPassword()" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors">
+                            <i class="far fa-copy fa-lg"></i>
+                        </button>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between mb-2">
+                                <label class="font-semibold">Length</label>
+                                <span id="length-val" class="font-mono text-blue-600">16</span>
+                            </div>
+                            <input type="range" id="pass-length" min="8" max="64" value="16" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <label class="flex items-center space-x-3 cursor-pointer">
+                                <input type="checkbox" id="pass-upper" checked class="w-5 h-5 text-blue-600">
+                                <span>Uppercase</span>
+                            </label>
+                            <label class="flex items-center space-x-3 cursor-pointer">
+                                <input type="checkbox" id="pass-numbers" checked class="w-5 h-5 text-blue-600">
+                                <span>Numbers</span>
+                            </label>
+                            <label class="flex items-center space-x-3 cursor-pointer">
+                                <input type="checkbox" id="pass-symbols" checked class="w-5 h-5 text-blue-600">
+                                <span>Symbols</span>
+                            </label>
+                        </div>
+                        <button onclick="generatePassword()" class="w-full bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-slate-700 transition-all mt-4">
+                            Generate Secure Password
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Markdown Previewer -->
+            <section id="markdown" class="tab-content">
+                <h2 class="text-2xl font-bold mb-6 flex items-center">
+                    <i class="fab fa-markdown text-indigo-500 mr-3"></i> Markdown Previewer
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 h-[500px]">
+                    <textarea id="md-input" class="w-full h-full p-4 border rounded-xl font-mono text-sm resize-none focus:ring-2 focus:ring-indigo-400 outline-none" placeholder="Type markdown here..."></textarea>
+                    <div id="md-output" class="w-full h-full p-4 border rounded-xl overflow-auto prose prose-slate bg-white">
+                        <!-- Rendered HTML goes here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. Pomodoro Timer -->
+            <section id="timer" class="tab-content">
+                <div class="max-w-md mx-auto text-center">
+                    <h2 class="text-2xl font-bold mb-6 flex items-center justify-center">
+                        <i class="fas fa-stopwatch text-red-500 mr-3"></i> Focus Timer
+                    </h2>
+                    <div class="relative inline-flex items-center justify-center mb-8">
+                        <svg class="w-64 h-64 transform -rotate-90">
+                            <circle cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" class="text-slate-200" />
+                            <circle id="timer-progress" cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" 
+                                stroke-dasharray="753.98" stroke-dashoffset="0"
+                                class="text-red-500 timer-circle" />
+                        </svg>
+                        <div id="timer-display" class="absolute text-5xl font-mono font-bold">25:00</div>
+                    </div>
+                    <div class="flex justify-center space-x-4">
+                        <button id="timer-toggle" class="bg-red-500 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-red-600 transition-all">Start</button>
+                        <button id="timer-reset" class="bg-slate-200 text-slate-700 px-8 py-3 rounded-full font-bold hover:bg-slate-300 transition-all">Reset</button>
+                    </div>
+                    <div class="mt-8 flex justify-center space-x-2">
+                        <button onclick="setTimer(25)" class="px-4 py-1 rounded bg-slate-100 text-xs font-semibold hover:bg-slate-200">Work (25m)</button>
+                        <button onclick="setTimer(5)" class="px-4 py-1 rounded bg-slate-100 text-xs font-semibold hover:bg-slate-200">Short Break (5m)</button>
+                        <button onclick="setTimer(15)" class="px-4 py-1 rounded bg-slate-100 text-xs font-semibold hover:bg-slate-200">Long Break (15m)</button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-2 rounded-full opacity-0 transition-opacity pointer-events-none">
+            Copied to clipboard!
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- NAVIGATION LOGIC ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if(btn.dataset.tab === tabId) {
+                    btn.className = "nav-btn px-6 py-2 rounded-full font-medium bg-blue-600 text-white shadow-lg transition-all";
+                } else {
+                    btn.className = "nav-btn px-6 py-2 rounded-full font-medium bg-white text-slate-600 hover:bg-slate-100 transition-all";
+                }
+            });
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.opacity = '1';
+            setTimeout(() => toast.style.opacity = '0', 2000);
+        }
+
+        // --- CONVERTER LOGIC ---
+        const unitRatios = {
+            m: 1, km: 1000, ft: 0.3048, mi: 1609.34,
+            kg: 1, lb: 0.453592
+        };
+
+        const unitInput = document.getElementById('unit-input');
+        const unitFrom = document.getElementById('unit-from');
+        const unitTo = document.getElementById('unit-to');
+        const unitOutput = document.getElementById('unit-output');
+
+        function convert() {
+            const val = parseFloat(unitInput.value);
+            if(isNaN(val)) {
+                unitOutput.innerText = '0';
+                return;
+            }
+            const baseValue = val * unitRatios[unitFrom.value];
+            const result = baseValue / unitRatios[unitTo.value];
+            unitOutput.innerText = result.toLocaleString(undefined, { maximumFractionDigits: 4 });
+        }
+
+        [unitInput, unitFrom, unitTo].forEach(el => el.addEventListener('input', convert));
+
+        // --- PASSWORD LOGIC ---
+        const passDisplay = document.getElementById('password-display');
+        const passLengthInput = document.getElementById('pass-length');
+        const lengthVal = document.getElementById('length-val');
+
+        passLengthInput.addEventListener('input', (e) => lengthVal.innerText = e.target.value);
+
+        function generatePassword() {
+            const length = passLengthInput.value;
+            const charset = {
+                lower: 'abcdefghijklmnopqrstuvwxyz',
+                upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                numbers: '0123456789',
+                symbols: '!@#$%^&*()_+~`|}{[]:;?><,./-='
+            };
+
+            let characters = charset.lower;
+            if(document.getElementById('pass-upper').checked) characters += charset.upper;
+            if(document.getElementById('pass-numbers').checked) characters += charset.numbers;
+            if(document.getElementById('pass-symbols').checked) characters += charset.symbols;
+
+            let password = '';
+            for (let i = 0; i < length; i++) {
+                password += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+            passDisplay.innerText = password;
+        }
+
+        function copyPassword() {
+            const text = passDisplay.innerText;
+            const tempInput = document.createElement("input");
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            showToast("Password copied!");
+        }
+
+        // --- MARKDOWN LOGIC (Simple Implementation) ---
+        const mdInput = document.getElementById('md-input');
+        const mdOutput = document.getElementById('md-output');
+
+        mdInput.addEventListener('input', () => {
+            let text = mdInput.value;
+            // Extremely simplified markdown parser
+            text = text
+                .replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold my-4">$1</h1>')
+                .replace(/^## (.*$)/gim, '<h2 class="text-2xl font-bold my-3">$1</h2>')
+                .replace(/^### (.*$)/gim, '<h3 class="text-xl font-bold my-2">$1</h3>')
+                .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+                .replace(/\*(.*)\*/gim, '<em>$1</em>')
+                .replace(/^\> (.*$)/gim, '<blockquote class="border-l-4 pl-4 italic text-slate-500">$1</blockquote>')
+                .replace(/`(.*?)`/gim, '<code class="bg-slate-100 p-1 rounded font-mono text-sm">$1</code>')
+                .replace(/\n$/gim, '<br />');
+            
+            mdOutput.innerHTML = text.split('\n').map(p => p.startsWith('<h') || p.startsWith('<block') ? p : `<p>${p}</p>`).join('');
+        });
+
+        // Initialize markdown
+        mdInput.value = "# Hello World\n\nThis is a **Markdown** previewer.\n\n> Try writing some quotes here!";
+        mdInput.dispatchEvent(new Event('input'));
+
+        // --- TIMER LOGIC ---
+        let timerSeconds = 1500; // 25 mins
+        let initialSeconds = 1500;
+        let timerInterval = null;
+        const timerDisplay = document.getElementById('timer-display');
+        const timerToggle = document.getElementById('timer-toggle');
+        const timerReset = document.getElementById('timer-reset');
+        const timerProgress = document.getElementById('timer-progress');
+        const circumference = 2 * Math.PI * 120;
+
+        function updateTimerUI() {
+            const mins = Math.floor(timerSeconds / 60);
+            const secs = timerSeconds % 60;
+            timerDisplay.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            
+            const offset = circumference - (timerSeconds / initialSeconds) * circumference;
+            timerProgress.style.strokeDashoffset = offset;
+        }
+
+        function toggleTimer() {
+            if(timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                timerToggle.innerText = 'Resume';
+                timerToggle.classList.replace('bg-orange-500', 'bg-red-500');
+            } else {
+                timerToggle.innerText = 'Pause';
+                timerToggle.classList.replace('bg-red-500', 'bg-orange-500');
+                timerInterval = setInterval(() => {
+                    timerSeconds--;
+                    updateTimerUI();
+                    if(timerSeconds <= 0) {
+                        clearInterval(timerInterval);
+                        timerInterval = null;
+                        alert("Time's up!");
+                    }
+                }, 1000);
+            }
+        }
+
+        function setTimer(mins) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerSeconds = mins * 60;
+            initialSeconds = timerSeconds;
+            timerToggle.innerText = 'Start';
+            timerToggle.className = "bg-red-500 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-red-600 transition-all";
+            updateTimerUI();
+        }
+
+        timerToggle.addEventListener('click', toggleTimer);
+        timerReset.addEventListener('click', () => setTimer(initialSeconds / 60));
+
+        // Initial password
+        generatePassword();
+
+    </script>
+</body>
+</html>
