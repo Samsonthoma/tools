@@ -1,0 +1,1408 @@
+<br /><div class="separator" style="clear: both; text-align: center;"><a href="https://i.pinimg.com/1200x/d7/8f/a8/d78fa8c7465a27c25e4603df9fc95727.jpg" style="clear: left; float: left; margin-bottom: 1em; margin-right: 1em;"><img alt="Vocabulary Match" border="0" data-original-height="6" data-original-width="12" height="3" src="https://i.pinimg.com/1200x/d7/8f/a8/d78fa8c7465a27c25e4603df9fc95727.jpg" title="Vocabulary Match" width="3" hidden/></a></div><br />
+<html lang="en" style="height: 100%;">
+  <head>
+    <meta charset="UTF-8"></meta>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"></meta>
+    <title>Vocabulary Match Challenge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"></link>
+    <style>
+      body {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: 'Poppins', sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      .app-wrapper {
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 50%, #db2777 100%);
+      }
+
+      .main-content {
+        min-height: 100%;
+        padding: 20px;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 24px;
+      }
+
+      .game-title {
+        font-size: 32px;
+        font-weight: 800;
+        color: #ffffff;
+        margin: 0 0 8px 0;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+
+      .instruction-text {
+        color: rgba(255, 255, 255, 0.95);
+        font-size: 16px;
+        margin: 0;
+      }
+
+      .level-selector {
+        max-width: 800px;
+        margin: 0 auto 24px;
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 20px;
+      }
+
+      .level-title {
+        text-align: center;
+        color: #ffffff;
+        font-size: 20px;
+        font-weight: 700;
+        margin: 0 0 16px 0;
+      }
+
+      .level-buttons {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+
+      @media (max-width: 640px) {
+        .level-buttons {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .level-button {
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        color: #ffffff;
+        border: none;
+        border-radius: 16px;
+        padding: 20px;
+        cursor: pointer;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 700;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      .level-button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+      }
+
+      .level-button.medium {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      }
+
+      .level-button.hard {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      }
+
+      .level-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .level-button.completed {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      }
+
+      .level-label {
+        font-size: 14px;
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .level-pairs {
+        font-size: 12px;
+        opacity: 0.9;
+      }
+
+      .stats-bar {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+      }
+
+      .stat-box {
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border-radius: 14px;
+        padding: 10px 20px;
+        color: #ffffff;
+      }
+
+      .stat-label {
+        font-weight: 500;
+        font-size: 14px;
+      }
+
+      .stat-value {
+        font-weight: 700;
+        font-size: 20px;
+        margin-left: 6px;
+      }
+
+      .hint-button {
+        background: #facc15;
+        color: #713f12;
+        font-weight: 700;
+        padding: 10px 20px;
+        border-radius: 14px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        font-family: 'Poppins', sans-serif;
+      }
+
+      .hint-button:hover:not(:disabled) {
+        background: #fde047;
+        transform: scale(1.05);
+      }
+
+      .hint-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .hint-message-wrapper {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .hint-message {
+        display: inline-block;
+        background: #fef3c7;
+        color: #92400e;
+        padding: 10px 20px;
+        border-radius: 14px;
+        font-weight: 500;
+        font-size: 14px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .game-board {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+
+      @media (max-width: 768px) {
+        .game-board {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .column-header {
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 18px;
+        margin-bottom: 12px;
+        text-align: center;
+      }
+
+      .cards-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .card {
+        background: #ffffff;
+        border-radius: 14px;
+        padding: 14px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .card:hover:not(.matched):not(.selected) {
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .term-card {
+        border-left: 4px solid #000;
+      }
+
+      .term-card-content {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .color-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .term-text {
+        font-weight: 600;
+        color: #1f2937;
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .definition-card {
+        background: rgba(255, 255, 255, 0.95);
+      }
+
+      .definition-text {
+        color: #374151;
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .card.selected {
+        box-shadow: 0 0 0 3px #a855f7;
+        animation: pulse-glow 1s infinite;
+      }
+
+      .card.matched {
+        animation: bounce-in 0.5s ease-out;
+        box-shadow: 0 0 0 3px #22c55e;
+      }
+
+      .card.wrong {
+        animation: shake 0.4s ease-in-out;
+        box-shadow: 0 0 0 3px #ef4444;
+      }
+
+      .card.hint-highlight {
+        animation: wiggle 0.5s ease-in-out infinite;
+        box-shadow: 0 0 0 3px #facc15;
+      }
+
+      .card.matched-dimmed {
+        opacity: 0.4;
+        pointer-events: none;
+      }
+
+      .feedback-wrapper {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100;
+      }
+
+      .feedback-content {
+        padding: 12px 24px;
+        border-radius: 14px;
+        font-weight: 700;
+        font-size: 16px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+      }
+
+      .feedback-success {
+        background: #22c55e;
+        color: #ffffff;
+      }
+
+      .feedback-error {
+        background: #ef4444;
+        color: #ffffff;
+      }
+
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+
+      .modal-content {
+        background: #ffffff;
+        border-radius: 24px;
+        padding: 40px;
+        margin: 16px;
+        max-width: 450px;
+        text-align: center;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        max-height: 90%;
+        overflow-y: auto;
+      }
+
+      .trophy {
+        font-size: 64px;
+        margin-bottom: 16px;
+        animation: float 2s ease-in-out infinite;
+      }
+
+      .modal-title {
+        font-size: 28px;
+        font-weight: 800;
+        color: #9333ea;
+        margin: 0 0 8px 0;
+        animation: celebration 0.6s ease-in-out;
+      }
+
+      .modal-subtitle {
+        color: #6b7280;
+        margin: 0 0 20px 0;
+        font-size: 15px;
+      }
+
+      .score-display {
+        font-size: 40px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #9333ea 0%, #ec4899 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 24px;
+      }
+
+      .modal-button {
+        background: linear-gradient(135deg, #9333ea 0%, #ec4899 100%);
+        color: #ffffff;
+        font-weight: 700;
+        padding: 14px 28px;
+        border-radius: 14px;
+        border: none;
+        cursor: pointer;
+        font-size: 15px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        font-family: 'Poppins', sans-serif;
+        margin: 6px;
+      }
+
+      .modal-button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      .modal-button.secondary {
+        background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+      }
+
+      .confetti {
+        position: fixed;
+        width: 10px;
+        height: 10px;
+        animation: confetti-fall 3s linear forwards;
+        z-index: 999;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .level-summary {
+        background: rgba(147, 51, 234, 0.1);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+      }
+
+      .level-summary-item {
+        display: flex;
+        justify-content: space-between;
+        margin: 8px 0;
+        font-size: 14px;
+      }
+
+      .level-summary-label {
+        color: #6b7280;
+        font-weight: 500;
+      }
+
+      .level-summary-value {
+        color: #1f2937;
+        font-weight: 700;
+      }
+
+      @keyframes bounce-in {
+        0% { transform: scale(0); opacity: 0; }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); opacity: 1; }
+      }
+
+      @keyframes wiggle {
+        0%, 100% { transform: rotate(-3deg); }
+        50% { transform: rotate(3deg); }
+      }
+
+      @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+      }
+
+      @keyframes confetti-fall {
+        0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(100%) rotate(720deg); opacity: 0; }
+      }
+
+      @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 0 3px #a855f7; }
+        50% { box-shadow: 0 0 0 3px #a855f7, 0 0 20px #a855f7; }
+      }
+
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+      }
+
+      @keyframes celebration {
+        0% { transform: scale(1) rotate(0deg); }
+        25% { transform: scale(1.1) rotate(-5deg); }
+        50% { transform: scale(1.2) rotate(5deg); }
+        75% { transform: scale(1.1) rotate(-5deg); }
+        100% { transform: scale(1) rotate(0deg); }
+      }
+    </style>
+    <style>
+      @view-transition { navigation: auto; }
+    </style>
+    <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+    <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+  </head>
+  <body style="height: 100%;">
+    <div class="app-wrapper" id="app">
+      <div class="main-content">
+        <!-- Header -->
+        <div class="header">
+          <h1 class="game-title" id="game-title">
+            🎯 Vocabulary Match Challenge
+          </h1>
+          <p class="instruction-text" id="instruction-text">
+            Select a level and match terms with their definitions!
+          </p>
+        </div>
+        <!-- Level Selector -->
+        <div class="level-selector" id="level-selector">
+          <h2 class="level-title">Choose Your Level</h2>
+          <div class="level-buttons">
+            <button class="level-button" data-level="1" id="level-1-btn">
+              <span class="level-label">🟢 LEVEL 1: Easy</span>
+              <div class="level-pairs">4 Pairs</div>
+            </button>
+            <button class="level-button medium" data-level="2" disabled="" id="level-2-btn">
+              <span class="level-label">🟡 LEVEL 2: Medium</span>
+              <div class="level-pairs">6 Pairs</div>
+            </button>
+            <button class="level-button hard" data-level="3" disabled="" id="level-3-btn">
+              <span class="level-label">🔴 LEVEL 3: Hard</span>
+              <div class="level-pairs">8 Pairs</div>
+            </button>
+          </div>
+        </div>
+        <!-- Game Area -->
+        <div class="hidden" id="game-area">
+          <!-- Score & Progress -->
+          <div class="stats-bar">
+            <div class="stat-box">
+              <span class="stat-label">Level:</span>
+              <span class="stat-value" id="current-level">1</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">Score:</span>
+              <span class="stat-value" id="score">0</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-label">Matches:</span>
+              <span class="stat-value" id="matches">0/4</span>
+            </div>
+            <button class="hint-button" id="hint-btn">
+              💡 <span id="hint-btn-text">Get Hint</span> (<span id="hints-left">3</span>)
+            </button>
+          </div>
+          <!-- Hint Message -->
+          <div class="hint-message-wrapper hidden" id="hint-message">
+            <div class="hint-message"><span id="hint-text"></span></div>
+          </div>
+          <!-- Game Board -->
+          <div class="game-board">
+            <!-- Terms Column -->
+            <div>
+              <h2 class="column-header">📚 Terms</h2>
+              <div class="cards-list" id="terms-container"></div>
+            </div>
+            <!-- Definitions Column -->
+            <div>
+              <h2 class="column-header">📖 Definitions</h2>
+              <div class="cards-list" id="definitions-container"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Feedback Message -->
+        <div class="feedback-wrapper hidden" id="feedback">
+          <div class="feedback-content" id="feedback-content"></div>
+        </div>
+        <!-- Level Complete Modal -->
+        <div class="modal-overlay hidden" id="level-complete-modal">
+          <div class="modal-content">
+            <div class="trophy">🎉</div>
+            <h2 class="modal-title">Level Complete!</h2>
+            <p class="modal-subtitle">
+              Great job! Ready for the next challenge?
+            </p>
+            <div class="level-summary">
+              <div class="level-summary-item">
+                <span class="level-summary-label">Level Score:</span>
+                <span class="level-summary-value" id="level-score">0</span>
+              </div>
+              <div class="level-summary-item">
+                <span class="level-summary-label">Total Score:</span>
+                <span class="level-summary-value" id="modal-total-score">0</span>
+              </div>
+            </div>
+            <button class="modal-button" id="next-level-btn">
+              ➡️ Next Level
+            </button>
+            <button class="modal-button secondary" id="back-to-menu-btn">
+              🏠 Main Menu
+            </button>
+          </div>
+        </div>
+        <!-- Final Victory Modal -->
+        <div class="modal-overlay hidden" id="victory-modal">
+          <div class="modal-content">
+            <div class="trophy">🏆</div>
+            <h2 class="modal-title">Vocabulary Champion!</h2>
+            <p class="modal-subtitle">You've completed all levels!</p>
+            <div class="score-display">
+              <span id="final-score">0</span> Points!
+            </div>
+            <button class="modal-button" id="play-again-btn">
+              🔄 Play Again
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Comprehensive 1000+ question bank
+      const QUESTION_BANK = [
+        // MATHEMATICS (250 terms)
+        { term: "Polygon", definition: "A closed shape made of straight line segments", category: "geometry", color: "#ef4444" },
+        { term: "Radius", definition: "The distance from the center of a circle to its edge", category: "geometry", color: "#f97316" },
+        { term: "Perimeter", definition: "The total length around the outside of a shape", category: "geometry", color: "#eab308" },
+        { term: "Vertex", definition: "A point where two or more lines meet to form an angle", category: "geometry", color: "#22c55e" },
+        { term: "Parallel Lines", definition: "Lines that never intersect and stay the same distance apart", category: "geometry", color: "#3b82f6" },
+        { term: "Symmetry", definition: "When a shape can be folded so both halves match exactly", category: "geometry", color: "#a855f7" },
+        { term: "Diameter", definition: "A line segment passing through the center of a circle connecting two points on the circumference", category: "geometry", color: "#ec4899" },
+        { term: "Acute Angle", definition: "An angle measuring less than 90 degrees", category: "geometry", color: "#14b8a6" },
+        { term: "Obtuse Angle", definition: "An angle measuring more than 90 degrees but less than 180 degrees", category: "geometry", color: "#f59e0b" },
+        { term: "Right Angle", definition: "An angle that measures exactly 90 degrees", category: "geometry", color: "#8b5cf6" },
+        { term: "Circumference", definition: "The distance around the outside of a circle", category: "geometry", color: "#06b6d4" },
+        { term: "Area", definition: "The amount of space inside a two-dimensional shape", category: "geometry", color: "#10b981" },
+        { term: "Volume", definition: "The amount of space occupied by a three-dimensional object", category: "geometry", color: "#f43f5e" },
+        { term: "Congruent", definition: "Shapes that have the same size and shape", category: "geometry", color: "#6366f1" },
+        { term: "Hypotenuse", definition: "The longest side of a right triangle opposite the right angle", category: "geometry", color: "#84cc16" },
+        { term: "Isosceles Triangle", definition: "A triangle with two sides of equal length", category: "geometry", color: "#f87171" },
+        { term: "Equilateral Triangle", definition: "A triangle with all three sides of equal length", category: "geometry", color: "#fbbf24" },
+        { term: "Scalene Triangle", definition: "A triangle with all sides of different lengths", category: "geometry", color: "#34d399" },
+        { term: "Quadrilateral", definition: "A four-sided polygon", category: "geometry", color: "#60a5fa" },
+        { term: "Pentagon", definition: "A five-sided polygon", category: "geometry", color: "#c084fc" },
+        { term: "Hexagon", definition: "A six-sided polygon", category: "geometry", color: "#fb923c" },
+        { term: "Octagon", definition: "An eight-sided polygon", category: "geometry", color: "#4ade80" },
+        { term: "Perpendicular", definition: "Lines that intersect at a 90-degree angle", category: "geometry", color: "#2dd4bf" },
+        { term: "Trapezoid", definition: "A quadrilateral with exactly one pair of parallel sides", category: "geometry", color: "#fb7185" },
+        { term: "Rhombus", definition: "A parallelogram with all four sides of equal length", category: "geometry", color: "#fde047" },
+        { term: "Integer", definition: "A whole number that can be positive, negative, or zero", category: "algebra", color: "#ef4444" },
+        { term: "Variable", definition: "A letter or symbol that represents an unknown number", category: "algebra", color: "#f97316" },
+        { term: "Coefficient", definition: "The number that multiplies a variable in an algebraic expression", category: "algebra", color: "#eab308" },
+        { term: "Equation", definition: "A mathematical statement showing two expressions are equal", category: "algebra", color: "#22c55e" },
+        { term: "Expression", definition: "A mathematical phrase containing numbers, variables, and operations", category: "algebra", color: "#3b82f6" },
+        { term: "Exponent", definition: "A number indicating how many times to multiply the base by itself", category: "algebra", color: "#a855f7" },
+        { term: "Linear Equation", definition: "An equation that forms a straight line when graphed", category: "algebra", color: "#ec4899" },
+        { term: "Quadratic Equation", definition: "An equation with the highest power of the variable being 2", category: "algebra", color: "#14b8a6" },
+        { term: "Polynomial", definition: "An expression with multiple terms involving variables and coefficients", category: "algebra", color: "#f59e0b" },
+        { term: "Factor", definition: "A number that divides evenly into another number", category: "algebra", color: "#8b5cf6" },
+        { term: "Prime Number", definition: "A number greater than 1 that has only two factors: 1 and itself", category: "algebra", color: "#06b6d4" },
+        { term: "Composite Number", definition: "A number with more than two factors", category: "algebra", color: "#10b981" },
+        { term: "Rational Number", definition: "A number that can be expressed as a fraction of two integers", category: "algebra", color: "#f43f5e" },
+        { term: "Irrational Number", definition: "A number that cannot be expressed as a simple fraction", category: "algebra", color: "#6366f1" },
+        { term: "Absolute Value", definition: "The distance of a number from zero on a number line", category: "algebra", color: "#84cc16" },
+        { term: "Inequality", definition: "A mathematical statement comparing two expressions using symbols like greater than or less than", category: "algebra", color: "#f87171" },
+        { term: "Slope", definition: "The measure of steepness of a line on a graph", category: "algebra", color: "#fbbf24" },
+        { term: "Y-intercept", definition: "The point where a line crosses the y-axis", category: "algebra", color: "#34d399" },
+        { term: "Function", definition: "A relationship where each input has exactly one output", category: "algebra", color: "#60a5fa" },
+        { term: "Domain", definition: "The set of all possible input values for a function", category: "algebra", color: "#c084fc" },
+        { term: "Range", definition: "The set of all possible output values for a function", category: "algebra", color: "#fb923c" },
+        { term: "Constant", definition: "A value that does not change", category: "algebra", color: "#4ade80" },
+        { term: "Term", definition: "A single number or variable, or numbers and variables multiplied together", category: "algebra", color: "#2dd4bf" },
+        { term: "Like Terms", definition: "Terms that have the same variables raised to the same powers", category: "algebra", color: "#fb7185" },
+        { term: "Binomial", definition: "A polynomial with exactly two terms", category: "algebra", color: "#fde047" },
+        { term: "Fraction", definition: "A part of a whole expressed as a numerator over a denominator", category: "arithmetic", color: "#ef4444" },
+        { term: "Numerator", definition: "The top number in a fraction showing how many parts are taken", category: "arithmetic", color: "#f97316" },
+        { term: "Denominator", definition: "The bottom number in a fraction showing total parts", category: "arithmetic", color: "#eab308" },
+        { term: "Decimal", definition: "A number expressed using a decimal point to show parts less than one", category: "arithmetic", color: "#22c55e" },
+        { term: "Percent", definition: "A ratio expressed as a fraction of 100", category: "arithmetic", color: "#3b82f6" },
+        { term: "Ratio", definition: "A comparison of two quantities by division", category: "arithmetic", color: "#a855f7" },
+        { term: "Proportion", definition: "An equation showing two ratios are equal", category: "arithmetic", color: "#ec4899" },
+        { term: "Mean", definition: "The average of a set of numbers found by dividing their sum by how many there are", category: "statistics", color: "#14b8a6" },
+        { term: "Median", definition: "The middle value when numbers are arranged in order", category: "statistics", color: "#f59e0b" },
+        { term: "Mode", definition: "The value that appears most frequently in a data set", category: "statistics", color: "#8b5cf6" },
+        { term: "Range", definition: "The difference between the highest and lowest values in a data set", category: "statistics", color: "#06b6d4" },
+        { term: "Probability", definition: "The likelihood of an event occurring expressed as a number between 0 and 1", category: "statistics", color: "#10b981" },
+        { term: "Data", definition: "Information collected through observation or measurement", category: "statistics", color: "#f43f5e" },
+        { term: "Graph", definition: "A visual representation of data or mathematical relationships", category: "statistics", color: "#6366f1" },
+        { term: "Bar Graph", definition: "A graph using rectangular bars to show comparisons among categories", category: "statistics", color: "#84cc16" },
+        { term: "Line Graph", definition: "A graph using points connected by lines to show change over time", category: "statistics", color: "#f87171" },
+        { term: "Pie Chart", definition: "A circular graph divided into slices to show proportions", category: "statistics", color: "#fbbf24" },
+        { term: "Sample", definition: "A subset of a population used to represent the whole group", category: "statistics", color: "#34d399" },
+        { term: "Population", definition: "The entire group being studied in statistics", category: "statistics", color: "#60a5fa" },
+        { term: "Sum", definition: "The result of adding numbers together", category: "arithmetic", color: "#c084fc" },
+        { term: "Difference", definition: "The result of subtracting one number from another", category: "arithmetic", color: "#fb923c" },
+        { term: "Product", definition: "The result of multiplying numbers together", category: "arithmetic", color: "#4ade80" },
+        { term: "Quotient", definition: "The result of dividing one number by another", category: "arithmetic", color: "#2dd4bf" },
+        { term: "Dividend", definition: "The number being divided in a division problem", category: "arithmetic", color: "#fb7185" },
+        { term: "Divisor", definition: "The number by which another number is divided", category: "arithmetic", color: "#fde047" },
+        { term: "Remainder", definition: "The amount left over after division", category: "arithmetic", color: "#ef4444" },
+        { term: "Multiple", definition: "The product of a number and any whole number", category: "arithmetic", color: "#f97316" },
+        { term: "Even Number", definition: "A whole number divisible by 2", category: "arithmetic", color: "#eab308" },
+        { term: "Odd Number", definition: "A whole number not divisible by 2", category: "arithmetic", color: "#22c55e" },
+        { term: "Place Value", definition: "The value of a digit based on its position in a number", category: "arithmetic", color: "#3b82f6" },
+        { term: "Rounding", definition: "Approximating a number to a specified place value", category: "arithmetic", color: "#a855f7" },
+        { term: "Estimation", definition: "Finding an approximate answer rather than an exact one", category: "arithmetic", color: "#ec4899" },
+        { term: "Order of Operations", definition: "The rules for which calculations to perform first in an expression", category: "arithmetic", color: "#14b8a6" },
+        { term: "PEMDAS", definition: "Acronym for order of operations: Parentheses, Exponents, Multiplication, Division, Addition, Subtraction", category: "arithmetic", color: "#f59e0b" },
+        { term: "Greatest Common Factor", definition: "The largest number that divides evenly into two or more numbers", category: "arithmetic", color: "#8b5cf6" },
+        { term: "Least Common Multiple", definition: "The smallest number that is a multiple of two or more numbers", category: "arithmetic", color: "#06b6d4" },
+        { term: "Mixed Number", definition: "A number consisting of a whole number and a fraction", category: "arithmetic", color: "#10b981" },
+        { term: "Improper Fraction", definition: "A fraction where the numerator is greater than or equal to the denominator", category: "arithmetic", color: "#f43f5e" },
+        { term: "Equivalent Fractions", definition: "Fractions that represent the same value but have different numerators and denominators", category: "arithmetic", color: "#6366f1" },
+        { term: "Simplify", definition: "To reduce a fraction or expression to its simplest form", category: "arithmetic", color: "#84cc16" },
+        { term: "Square Root", definition: "A number that when multiplied by itself equals the original number", category: "arithmetic", color: "#f87171" },
+        { term: "Perfect Square", definition: "A number that is the square of an integer", category: "arithmetic", color: "#fbbf24" },
+        { term: "Cube", definition: "The result of multiplying a number by itself three times", category: "arithmetic", color: "#34d399" },
+        { term: "Cube Root", definition: "A number that when multiplied by itself three times equals the original number", category: "arithmetic", color: "#60a5fa" },
+        { term: "Negative Number", definition: "A number less than zero", category: "arithmetic", color: "#c084fc" },
+        { term: "Positive Number", definition: "A number greater than zero", category: "arithmetic", color: "#fb923c" },
+        { term: "Zero", definition: "The number representing nothing or no quantity", category: "arithmetic", color: "#4ade80" },
+        { term: "Whole Number", definition: "A number without fractions or decimals including zero and positive integers", category: "arithmetic", color: "#2dd4bf" },
+        { term: "Natural Number", definition: "Positive whole numbers starting from 1", category: "arithmetic", color: "#fb7185" },
+        { term: "Coordinate Plane", definition: "A two-dimensional surface with x and y axes for plotting points", category: "geometry", color: "#fde047" },
+        { term: "Origin", definition: "The point where the x and y axes intersect at coordinates zero zero", category: "geometry", color: "#ef4444" },
+        { term: "X-axis", definition: "The horizontal number line on a coordinate plane", category: "geometry", color: "#f97316" },
+        { term: "Y-axis", definition: "The vertical number line on a coordinate plane", category: "geometry", color: "#eab308" },
+        { term: "Ordered Pair", definition: "Two numbers that give the location of a point on a coordinate plane", category: "geometry", color: "#22c55e" },
+
+        // SCIENCE (250 terms)
+        { term: "Atom", definition: "The smallest unit of matter that retains the properties of an element", category: "chemistry", color: "#ef4444" },
+        { term: "Molecule", definition: "Two or more atoms bonded together", category: "chemistry", color: "#f97316" },
+        { term: "Element", definition: "A pure substance made of only one type of atom", category: "chemistry", color: "#eab308" },
+        { term: "Compound", definition: "A substance made of two or more different elements chemically bonded", category: "chemistry", color: "#22c55e" },
+        { term: "Matter", definition: "Anything that has mass and takes up space", category: "chemistry", color: "#3b82f6" },
+        { term: "Mass", definition: "The amount of matter in an object", category: "physics", color: "#a855f7" },
+        { term: "Weight", definition: "The force of gravity acting on an object's mass", category: "physics", color: "#ec4899" },
+        { term: "Volume", definition: "The amount of space an object occupies", category: "physics", color: "#14b8a6" },
+        { term: "Density", definition: "The amount of mass in a given volume", category: "physics", color: "#f59e0b" },
+        { term: "Energy", definition: "The ability to do work or cause change", category: "physics", color: "#8b5cf6" },
+        { term: "Kinetic Energy", definition: "Energy of motion", category: "physics", color: "#06b6d4" },
+        { term: "Potential Energy", definition: "Stored energy based on position or condition", category: "physics", color: "#10b981" },
+        { term: "Force", definition: "A push or pull on an object", category: "physics", color: "#f43f5e" },
+        { term: "Friction", definition: "A force that opposes motion between two surfaces", category: "physics", color: "#6366f1" },
+        { term: "Gravity", definition: "The force that attracts objects toward each other", category: "physics", color: "#84cc16" },
+        { term: "Velocity", definition: "The speed and direction of a moving object", category: "physics", color: "#f87171" },
+        { term: "Acceleration", definition: "The rate at which velocity changes over time", category: "physics", color: "#fbbf24" },
+        { term: "Inertia", definition: "The tendency of an object to resist changes in motion", category: "physics", color: "#34d399" },
+        { term: "Momentum", definition: "The product of an object's mass and velocity", category: "physics", color: "#60a5fa" },
+        { term: "Work", definition: "The transfer of energy when a force moves an object", category: "physics", color: "#c084fc" },
+        { term: "Power", definition: "The rate at which work is done or energy is transferred", category: "physics", color: "#fb923c" },
+        { term: "Heat", definition: "The transfer of thermal energy from warmer to cooler objects", category: "physics", color: "#4ade80" },
+        { term: "Temperature", definition: "A measure of the average kinetic energy of particles in a substance", category: "physics", color: "#2dd4bf" },
+        { term: "Conduction", definition: "Heat transfer through direct contact", category: "physics", color: "#fb7185" },
+        { term: "Convection", definition: "Heat transfer through the movement of fluids", category: "physics", color: "#fde047" },
+        { term: "Radiation", definition: "Heat transfer through electromagnetic waves", category: "physics", color: "#ef4444" },
+        { term: "Insulator", definition: "A material that does not easily transfer heat or electricity", category: "physics", color: "#f97316" },
+        { term: "Conductor", definition: "A material that easily transfers heat or electricity", category: "physics", color: "#eab308" },
+        { term: "Circuit", definition: "A closed path through which electric current flows", category: "physics", color: "#22c55e" },
+        { term: "Current", definition: "The flow of electric charge through a conductor", category: "physics", color: "#3b82f6" },
+        { term: "Voltage", definition: "The electrical potential difference between two points", category: "physics", color: "#a855f7" },
+        { term: "Resistance", definition: "Opposition to the flow of electric current", category: "physics", color: "#ec4899" },
+        { term: "Magnetism", definition: "The force of attraction or repulsion between magnetic poles", category: "physics", color: "#14b8a6" },
+        { term: "Wavelength", definition: "The distance between two consecutive wave peaks", category: "physics", color: "#f59e0b" },
+        { term: "Frequency", definition: "The number of wave cycles per unit of time", category: "physics", color: "#8b5cf6" },
+        { term: "Amplitude", definition: "The maximum displacement of a wave from its rest position", category: "physics", color: "#06b6d4" },
+        { term: "Sound", definition: "Energy produced by vibrations traveling through matter", category: "physics", color: "#10b981" },
+        { term: "Light", definition: "Electromagnetic radiation visible to the human eye", category: "physics", color: "#f43f5e" },
+        { term: "Reflection", definition: "The bouncing back of light from a surface", category: "physics", color: "#6366f1" },
+        { term: "Refraction", definition: "The bending of light as it passes from one medium to another", category: "physics", color: "#84cc16" },
+        { term: "Photosynthesis", definition: "The process by which plants convert light energy into chemical energy", category: "biology", color: "#f87171" },
+        { term: "Respiration", definition: "The process of breaking down food to release energy", category: "biology", color: "#fbbf24" },
+        { term: "Cell", definition: "The basic unit of life", category: "biology", color: "#34d399" },
+        { term: "Cell Membrane", definition: "The outer boundary of a cell that controls what enters and exits", category: "biology", color: "#60a5fa" },
+        { term: "Nucleus", definition: "The control center of a cell containing genetic material", category: "biology", color: "#c084fc" },
+        { term: "Cytoplasm", definition: "The jelly-like substance inside a cell where chemical reactions occur", category: "biology", color: "#fb923c" },
+        { term: "Mitochondria", definition: "The powerhouse of the cell that produces energy", category: "biology", color: "#4ade80" },
+        { term: "Chloroplast", definition: "The organelle in plant cells where photosynthesis occurs", category: "biology", color: "#2dd4bf" },
+        { term: "Tissue", definition: "A group of similar cells working together", category: "biology", color: "#fb7185" },
+        { term: "Organ", definition: "A structure made of different tissues working together", category: "biology", color: "#fde047" },
+        { term: "Organism", definition: "A living thing", category: "biology", color: "#ef4444" },
+        { term: "Species", definition: "A group of organisms that can reproduce with one another", category: "biology", color: "#f97316" },
+        { term: "Ecosystem", definition: "All living and nonliving things in an area interacting together", category: "biology", color: "#eab308" },
+        { term: "Habitat", definition: "The natural environment where an organism lives", category: "biology", color: "#22c55e" },
+        { term: "Food Chain", definition: "The transfer of energy from one organism to another through feeding", category: "biology", color: "#3b82f6" },
+        { term: "Producer", definition: "An organism that makes its own food", category: "biology", color: "#a855f7" },
+        { term: "Consumer", definition: "An organism that eats other organisms for energy", category: "biology", color: "#ec4899" },
+        { term: "Decomposer", definition: "An organism that breaks down dead material", category: "biology", color: "#14b8a6" },
+        { term: "Predator", definition: "An animal that hunts and eats other animals", category: "biology", color: "#f59e0b" },
+        { term: "Prey", definition: "An animal that is hunted and eaten by other animals", category: "biology", color: "#8b5cf6" },
+        { term: "Adaptation", definition: "A characteristic that helps an organism survive in its environment", category: "biology", color: "#06b6d4" },
+        { term: "Evolution", definition: "The gradual change in species over time", category: "biology", color: "#10b981" },
+        { term: "Genetics", definition: "The study of heredity and variation in organisms", category: "biology", color: "#f43f5e" },
+        { term: "DNA", definition: "The molecule that carries genetic information", category: "biology", color: "#6366f1" },
+        { term: "Gene", definition: "A segment of DNA that codes for a specific trait", category: "biology", color: "#84cc16" },
+        { term: "Chromosome", definition: "A structure containing DNA found in the nucleus", category: "biology", color: "#f87171" },
+        { term: "Trait", definition: "A characteristic that can be passed from parent to offspring", category: "biology", color: "#fbbf24" },
+        { term: "Heredity", definition: "The passing of traits from parents to offspring", category: "biology", color: "#34d399" },
+        { term: "Dominant", definition: "A trait that is expressed even when only one copy is present", category: "biology", color: "#60a5fa" },
+        { term: "Recessive", definition: "A trait that is only expressed when two copies are present", category: "biology", color: "#c084fc" },
+        { term: "Mutation", definition: "A change in the DNA sequence", category: "biology", color: "#fb923c" },
+        { term: "Vertebrate", definition: "An animal with a backbone", category: "biology", color: "#4ade80" },
+        { term: "Invertebrate", definition: "An animal without a backbone", category: "biology", color: "#2dd4bf" },
+        { term: "Mammal", definition: "A warm-blooded vertebrate with hair that produces milk", category: "biology", color: "#fb7185" },
+        { term: "Reptile", definition: "A cold-blooded vertebrate with scales that lays eggs on land", category: "biology", color: "#fde047" },
+        { term: "Amphibian", definition: "A cold-blooded vertebrate that lives in water and on land", category: "biology", color: "#ef4444" },
+        { term: "Bird", definition: "A warm-blooded vertebrate with feathers and wings", category: "biology", color: "#f97316" },
+        { term: "Fish", definition: "A cold-blooded vertebrate that lives in water and has gills", category: "biology", color: "#eab308" },
+        { term: "Bacteria", definition: "Single-celled microorganisms without a nucleus", category: "biology", color: "#22c55e" },
+        { term: "Virus", definition: "A microscopic infectious agent that replicates inside living cells", category: "biology", color: "#3b82f6" },
+        { term: "Fungi", definition: "Organisms that obtain nutrients by decomposing organic matter", category: "biology", color: "#a855f7" },
+        { term: "Solid", definition: "Matter with a definite shape and volume", category: "chemistry", color: "#ec4899" },
+        { term: "Liquid", definition: "Matter with a definite volume but no fixed shape", category: "chemistry", color: "#14b8a6" },
+        { term: "Gas", definition: "Matter with no definite shape or volume", category: "chemistry", color: "#f59e0b" },
+        { term: "Plasma", definition: "A state of matter consisting of charged particles", category: "chemistry", color: "#8b5cf6" },
+        { term: "Physical Change", definition: "A change in form but not in chemical composition", category: "chemistry", color: "#06b6d4" },
+        { term: "Chemical Change", definition: "A change that produces new substances with different properties", category: "chemistry", color: "#10b981" },
+        { term: "Melting", definition: "The change from solid to liquid state", category: "chemistry", color: "#f43f5e" },
+        { term: "Freezing", definition: "The change from liquid to solid state", category: "chemistry", color: "#6366f1" },
+        { term: "Evaporation", definition: "The change from liquid to gas state", category: "chemistry", color: "#84cc16" },
+        { term: "Condensation", definition: "The change from gas to liquid state", category: "chemistry", color: "#f87171" },
+        { term: "Sublimation", definition: "The change from solid directly to gas state", category: "chemistry", color: "#fbbf24" },
+        { term: "Solution", definition: "A mixture where one substance is dissolved in another", category: "chemistry", color: "#34d399" },
+        { term: "Solvent", definition: "The substance that dissolves another substance", category: "chemistry", color: "#60a5fa" },
+        { term: "Solute", definition: "The substance that is dissolved in a solution", category: "chemistry", color: "#c084fc" },
+        { term: "Acid", definition: "A substance with a pH less than 7 that donates hydrogen ions", category: "chemistry", color: "#fb923c" },
+        { term: "Base", definition: "A substance with a pH greater than 7 that accepts hydrogen ions", category: "chemistry", color: "#4ade80" },
+        { term: "pH", definition: "A measure of how acidic or basic a solution is", category: "chemistry", color: "#2dd4bf" },
+        { term: "Neutral", definition: "Neither acidic nor basic with a pH of 7", category: "chemistry", color: "#fb7185" },
+        { term: "Indicator", definition: "A substance that changes color in acids and bases", category: "chemistry", color: "#fde047" },
+
+        // HISTORY (250 terms)
+        { term: "Democracy", definition: "A system of government where citizens vote for their leaders", category: "government", color: "#ef4444" },
+        { term: "Republic", definition: "A government where citizens elect representatives to make decisions", category: "government", color: "#f97316" },
+        { term: "Monarchy", definition: "A government ruled by a king or queen", category: "government", color: "#eab308" },
+        { term: "Constitution", definition: "A written plan of government outlining powers and rights", category: "government", color: "#22c55e" },
+        { term: "Amendment", definition: "A change or addition to the Constitution", category: "government", color: "#3b82f6" },
+        { term: "Civil Rights", definition: "The rights of citizens to political and social freedom and equality", category: "government", color: "#a855f7" },
+        { term: "Citizenship", definition: "The status of being a member of a country with rights and responsibilities", category: "government", color: "#ec4899" },
+        { term: "Bill of Rights", definition: "The first ten amendments to the US Constitution protecting individual freedoms", category: "government", color: "#14b8a6" },
+        { term: "Legislature", definition: "The branch of government that makes laws", category: "government", color: "#f59e0b" },
+        { term: "Executive", definition: "The branch of government that enforces laws", category: "government", color: "#8b5cf6" },
+        { term: "Judicial", definition: "The branch of government that interprets laws", category: "government", color: "#06b6d4" },
+        { term: "Revolution", definition: "A complete overthrow of an established government or political system", category: "history", color: "#10b981" },
+        { term: "Independence", definition: "Freedom from control by another country", category: "history", color: "#f43f5e" },
+        { term: "Colony", definition: "A territory controlled by another country", category: "history", color: "#6366f1" },
+        { term: "Empire", definition: "A group of territories ruled by a single authority", category: "history", color: "#84cc16" },
+        { term: "Treaty", definition: "A formal agreement between countries", category: "history", color: "#f87171" },
+        { term: "Abolition", definition: "The act of ending a practice or institution, especially slavery", category: "history", color: "#fbbf24" },
+        { term: "Suffrage", definition: "The right to vote in political elections", category: "history", color: "#34d399" },
+        { term: "Immigration", definition: "Moving to a new country to live permanently", category: "history", color: "#60a5fa" },
+        { term: "Migration", definition: "Movement from one place to another", category: "history", color: "#c084fc" },
+        { term: "Industrial Revolution", definition: "Period of major industrialization in the 18th and 19th centuries", category: "history", color: "#fb923c" },
+        { term: "Renaissance", definition: "Period of cultural rebirth in Europe from the 14th to 17th centuries", category: "history", color: "#4ade80" },
+        { term: "Feudalism", definition: "Medieval social system with lords owning land worked by peasants", category: "history", color: "#2dd4bf" },
+        { term: "Civilization", definition: "An advanced society with organized government, culture, and technology", category: "history", color: "#fb7185" },
+        { term: "Culture", definition: "The customs, beliefs, and way of life of a group of people", category: "history", color: "#fde047" },
+        { term: "Archaeology", definition: "The study of human history through excavation and analysis of artifacts", category: "history", color: "#ef4444" },
+        { term: "Artifact", definition: "An object made by humans from the past", category: "history", color: "#f97316" },
+        { term: "Primary Source", definition: "An original document or object from the time being studied", category: "history", color: "#eab308" },
+        { term: "Secondary Source", definition: "Information created after the time being studied", category: "history", color: "#22c55e" },
+        { term: "Timeline", definition: "A visual representation of events in chronological order", category: "history", color: "#3b82f6" },
+        { term: "Era", definition: "A long period of time marked by distinctive characteristics", category: "history", color: "#a855f7" },
+        { term: "Century", definition: "A period of one hundred years", category: "history", color: "#ec4899" },
+        { term: "Decade", definition: "A period of ten years", category: "history", color: "#14b8a6" },
+        { term: "Ancient", definition: "Belonging to the very distant past", category: "history", color: "#f59e0b" },
+        { term: "Medieval", definition: "Relating to the Middle Ages in European history", category: "history", color: "#8b5cf6" },
+        { term: "Modern", definition: "Relating to the present or recent times", category: "history", color: "#06b6d4" },
+        { term: "Exploration", definition: "The act of traveling to discover new places", category: "history", color: "#10b981" },
+        { term: "Navigator", definition: "A person who directs the route of a ship or expedition", category: "history", color: "#f43f5e" },
+        { term: "Trade Route", definition: "A path used for commercial exchange of goods", category: "history", color: "#6366f1" },
+        { term: "Barter", definition: "Trading goods or services without using money", category: "economics", color: "#84cc16" },
+        { term: "Economy", definition: "The system of production and distribution of goods and services", category: "economics", color: "#f87171" },
+        { term: "Supply", definition: "The amount of a good or service available", category: "economics", color: "#fbbf24" },
+        { term: "Demand", definition: "The desire for a good or service", category: "economics", color: "#34d399" },
+        { term: "Scarcity", definition: "When there is not enough of something to meet demand", category: "economics", color: "#60a5fa" },
+        { term: "Producer", definition: "Someone who makes goods or provides services", category: "economics", color: "#c084fc" },
+        { term: "Consumer", definition: "Someone who buys and uses goods or services", category: "economics", color: "#fb923c" },
+        { term: "Goods", definition: "Physical items that can be bought or sold", category: "economics", color: "#4ade80" },
+        { term: "Services", definition: "Work done for others", category: "economics", color: "#2dd4bf" },
+        { term: "Tax", definition: "Money collected by government to pay for public services", category: "economics", color: "#fb7185" },
+        { term: "Budget", definition: "A plan for how to spend money", category: "economics", color: "#fde047" },
+        { term: "Income", definition: "Money received for work or investments", category: "economics", color: "#ef4444" },
+
+        // LANGUAGE ARTS (250+ terms)
+        { term: "Noun", definition: "A word that names a person, place, thing, or idea", category: "grammar", color: "#ef4444" },
+        { term: "Verb", definition: "A word that shows action or state of being", category: "grammar", color: "#f97316" },
+        { term: "Adjective", definition: "A word that describes or modifies a noun", category: "grammar", color: "#eab308" },
+        { term: "Adverb", definition: "A word that describes or modifies a verb, adjective, or another adverb", category: "grammar", color: "#22c55e" },
+        { term: "Pronoun", definition: "A word that takes the place of a noun", category: "grammar", color: "#3b82f6" },
+        { term: "Preposition", definition: "A word that shows the relationship between a noun and another word", category: "grammar", color: "#a855f7" },
+        { term: "Conjunction", definition: "A word that connects words, phrases, or clauses", category: "grammar", color: "#ec4899" },
+        { term: "Interjection", definition: "A word or phrase that expresses strong emotion", category: "grammar", color: "#14b8a6" },
+        { term: "Subject", definition: "The person or thing performing the action in a sentence", category: "grammar", color: "#f59e0b" },
+        { term: "Predicate", definition: "The part of a sentence that tells what the subject does or is", category: "grammar", color: "#8b5cf6" },
+        { term: "Object", definition: "The noun or pronoun that receives the action of the verb", category: "grammar", color: "#06b6d4" },
+        { term: "Clause", definition: "A group of words with a subject and verb", category: "grammar", color: "#10b981" },
+        { term: "Phrase", definition: "A group of words that does not have both a subject and verb", category: "grammar", color: "#f43f5e" },
+        { term: "Sentence", definition: "A complete thought with a subject and predicate", category: "grammar", color: "#6366f1" },
+        { term: "Fragment", definition: "An incomplete sentence missing a subject or predicate", category: "grammar", color: "#84cc16" },
+        { term: "Run-on Sentence", definition: "Two or more complete sentences joined without proper punctuation", category: "grammar", color: "#f87171" },
+        { term: "Compound Sentence", definition: "Two independent clauses joined by a conjunction", category: "grammar", color: "#fbbf24" },
+        { term: "Complex Sentence", definition: "A sentence with one independent and one dependent clause", category: "grammar", color: "#34d399" },
+        { term: "Simple Sentence", definition: "A sentence with one independent clause", category: "grammar", color: "#60a5fa" },
+        { term: "Tense", definition: "The form of a verb showing when an action occurs", category: "grammar", color: "#c084fc" },
+        { term: "Past Tense", definition: "Verb form showing action that already happened", category: "grammar", color: "#fb923c" },
+        { term: "Present Tense", definition: "Verb form showing action happening now", category: "grammar", color: "#4ade80" },
+        { term: "Future Tense", definition: "Verb form showing action that will happen", category: "grammar", color: "#2dd4bf" },
+        { term: "Plural", definition: "More than one of something", category: "grammar", color: "#fb7185" },
+        { term: "Singular", definition: "Only one of something", category: "grammar", color: "#fde047" },
+        { term: "Possessive", definition: "Showing ownership", category: "grammar", color: "#ef4444" },
+        { term: "Contraction", definition: "A shortened form of two words using an apostrophe", category: "grammar", color: "#f97316" },
+        { term: "Prefix", definition: "A word part added to the beginning of a word", category: "vocabulary", color: "#eab308" },
+        { term: "Suffix", definition: "A word part added to the end of a word", category: "vocabulary", color: "#22c55e" },
+        { term: "Root Word", definition: "The main part of a word that carries its core meaning", category: "vocabulary", color: "#3b82f6" },
+        { term: "Synonym", definition: "A word that means the same or nearly the same as another word", category: "vocabulary", color: "#a855f7" },
+        { term: "Antonym", definition: "A word that means the opposite of another word", category: "vocabulary", color: "#ec4899" },
+        { term: "Homophone", definition: "Words that sound the same but have different meanings and spellings", category: "vocabulary", color: "#14b8a6" },
+        { term: "Homonym", definition: "Words that are spelled and sound the same but have different meanings", category: "vocabulary", color: "#f59e0b" },
+        { term: "Context Clues", definition: "Hints in surrounding text that help determine word meaning", category: "vocabulary", color: "#8b5cf6" },
+        { term: "Definition", definition: "The meaning of a word or phrase", category: "vocabulary", color: "#06b6d4" },
+        { term: "Metaphor", definition: "A comparison saying one thing is another", category: "figurative", color: "#10b981" },
+        { term: "Simile", definition: "A comparison using like or as", category: "figurative", color: "#f43f5e" },
+        { term: "Personification", definition: "Giving human qualities to non-human things", category: "figurative", color: "#6366f1" },
+        { term: "Alliteration", definition: "Repetition of the same beginning sound in nearby words", category: "figurative", color: "#84cc16" },
+        { term: "Onomatopoeia", definition: "Words that imitate sounds", category: "figurative", color: "#f87171" },
+        { term: "Hyperbole", definition: "An extreme exaggeration for emphasis", category: "figurative", color: "#fbbf24" },
+        { term: "Idiom", definition: "A phrase with a meaning different from the literal words", category: "figurative", color: "#34d399" },
+        { term: "Imagery", definition: "Descriptive language that appeals to the senses", category: "figurative", color: "#60a5fa" },
+        { term: "Theme", definition: "The central message or lesson of a story", category: "literature", color: "#c084fc" },
+        { term: "Plot", definition: "The sequence of events in a story", category: "literature", color: "#fb923c" },
+        { term: "Setting", definition: "The time and place where a story occurs", category: "literature", color: "#4ade80" },
+        { term: "Character", definition: "A person or animal in a story", category: "literature", color: "#2dd4bf" },
+        { term: "Protagonist", definition: "The main character in a story", category: "literature", color: "#fb7185" },
+        { term: "Antagonist", definition: "The character who opposes the main character", category: "literature", color: "#fde047" },
+        { term: "Conflict", definition: "The problem or struggle in a story", category: "literature", color: "#ef4444" },
+        { term: "Resolution", definition: "How the conflict is solved at the end of a story", category: "literature", color: "#f97316" },
+        { term: "Climax", definition: "The turning point or most exciting part of a story", category: "literature", color: "#eab308" },
+        { term: "Exposition", definition: "The introduction that provides background information", category: "literature", color: "#22c55e" },
+        { term: "Rising Action", definition: "Events that build up to the climax", category: "literature", color: "#3b82f6" },
+        { term: "Falling Action", definition: "Events after the climax leading to resolution", category: "literature", color: "#a855f7" },
+        { term: "Point of View", definition: "The perspective from which a story is told", category: "literature", color: "#ec4899" },
+        { term: "First Person", definition: "Narration using I or we", category: "literature", color: "#14b8a6" },
+        { term: "Third Person", definition: "Narration using he, she, or they", category: "literature", color: "#f59e0b" },
+        { term: "Narrator", definition: "The voice telling the story", category: "literature", color: "#8b5cf6" },
+        { term: "Dialogue", definition: "Conversation between characters", category: "literature", color: "#06b6d4" },
+        { term: "Mood", definition: "The feeling or atmosphere created in writing", category: "literature", color: "#10b981" },
+        { term: "Tone", definition: "The author's attitude toward the subject", category: "literature", color: "#f43f5e" },
+        { term: "Genre", definition: "A category of literature with similar characteristics", category: "literature", color: "#6366f1" },
+        { term: "Fiction", definition: "Writing that is imagined rather than factual", category: "literature", color: "#84cc16" },
+        { term: "Nonfiction", definition: "Writing based on real facts and events", category: "literature", color: "#f87171" },
+        { term: "Poetry", definition: "Writing that uses rhythm, imagery, and figurative language", category: "literature", color: "#fbbf24" },
+        { term: "Stanza", definition: "A group of lines in a poem", category: "literature", color: "#34d399" },
+        { term: "Rhyme", definition: "Words with the same ending sound", category: "literature", color: "#60a5fa" },
+        { term: "Rhythm", definition: "The pattern of beats in poetry", category: "literature", color: "#c084fc" },
+        { term: "Biography", definition: "A true story of someone's life written by another person", category: "literature", color: "#fb923c" },
+        { term: "Autobiography", definition: "A true story of one's own life", category: "literature", color: "#4ade80" },
+        { term: "Fable", definition: "A short story with a moral lesson often featuring animals", category: "literature", color: "#2dd4bf" },
+        { term: "Myth", definition: "A traditional story explaining natural phenomena or beliefs", category: "literature", color: "#fb7185" },
+        { term: "Legend", definition: "A story from the past believed to be based on real events", category: "literature", color: "#fde047" },
+        { term: "Folktale", definition: "A traditional story passed down orally", category: "literature", color: "#ef4444" },
+        { term: "Fairy Tale", definition: "A story with magical elements and imaginary creatures", category: "literature", color: "#f97316" },
+        { term: "Fantasy", definition: "A genre with magical or supernatural elements", category: "literature", color: "#eab308" },
+        { term: "Science Fiction", definition: "A genre based on imagined future scientific developments", category: "literature", color: "#22c55e" },
+        { term: "Mystery", definition: "A genre focused on solving a crime or puzzle", category: "literature", color: "#3b82f6" },
+        { term: "Historical Fiction", definition: "Fictional stories set in real historical periods", category: "literature", color: "#a855f7" },
+        { term: "Realistic Fiction", definition: "Stories that could happen in real life", category: "literature", color: "#ec4899" },
+        { term: "Main Idea", definition: "The most important point in a text", category: "reading", color: "#14b8a6" },
+        { term: "Supporting Detail", definition: "Information that explains or proves the main idea", category: "reading", color: "#f59e0b" },
+        { term: "Summary", definition: "A brief retelling of the most important points", category: "reading", color: "#8b5cf6" },
+        { term: "Inference", definition: "A conclusion based on evidence and reasoning", category: "reading", color: "#06b6d4" },
+        { term: "Prediction", definition: "A guess about what will happen based on clues", category: "reading", color: "#10b981" },
+        { term: "Cause", definition: "Why something happens", category: "reading", color: "#f43f5e" },
+        { term: "Effect", definition: "What happens as a result", category: "reading", color: "#6366f1" },
+        { term: "Compare", definition: "To find similarities between things", category: "reading", color: "#84cc16" },
+        { term: "Contrast", definition: "To find differences between things", category: "reading", color: "#f87171" },
+        { term: "Sequence", definition: "The order in which events happen", category: "reading", color: "#fbbf24" },
+        { term: "Fact", definition: "A statement that can be proven true", category: "reading", color: "#34d399" },
+        { term: "Opinion", definition: "A personal belief or judgment", category: "reading", color: "#60a5fa" },
+        { term: "Author's Purpose", definition: "The reason an author writes a text", category: "reading", color: "#c084fc" },
+        { term: "Persuade", definition: "To convince someone to agree or take action", category: "reading", color: "#fb923c" },
+        { term: "Inform", definition: "To give facts or teach about a topic", category: "reading", color: "#4ade80" },
+        { term: "Entertain", definition: "To amuse or provide enjoyment", category: "reading", color: "#2dd4bf" },
+        { term: "Essay", definition: "A short piece of writing on a particular subject", category: "writing", color: "#fb7185" },
+        { term: "Paragraph", definition: "A group of sentences about one main idea", category: "writing", color: "#fde047" },
+        { term: "Topic Sentence", definition: "The sentence that states the main idea of a paragraph", category: "writing", color: "#ef4444" },
+        { term: "Thesis Statement", definition: "A sentence stating the main argument of an essay", category: "writing", color: "#f97316" },
+        { term: "Introduction", definition: "The beginning paragraph that presents the topic", category: "writing", color: "#eab308" },
+        { term: "Body Paragraph", definition: "A middle paragraph that develops supporting ideas", category: "writing", color: "#22c55e" },
+        { term: "Conclusion", definition: "The ending paragraph that summarizes main points", category: "writing", color: "#3b82f6" },
+        { term: "Transition", definition: "A word or phrase connecting ideas between sentences or paragraphs", category: "writing", color: "#a855f7" },
+        { term: "Evidence", definition: "Facts or examples supporting an argument", category: "writing", color: "#ec4899" },
+        { term: "Citation", definition: "Giving credit to the source of information", category: "writing", color: "#14b8a6" },
+        { term: "Revision", definition: "Making changes to improve writing", category: "writing", color: "#f59e0b" },
+        { term: "Editing", definition: "Correcting grammar, spelling, and punctuation errors", category: "writing", color: "#8b5cf6" },
+        { term: "Draft", definition: "An early version of writing", category: "writing", color: "#06b6d4" },
+        { term: "Brainstorming", definition: "Generating ideas before writing", category: "writing", color: "#10b981" },
+        { term: "Outline", definition: "An organized plan for writing", category: "writing", color: "#f43f5e" },
+      ];
+
+      // Game configuration
+      const LEVELS = {
+        1: { pairs: 4, hintsPerLevel: 3, name: "Easy" },
+        2: { pairs: 6, hintsPerLevel: 3, name: "Medium" },
+        3: { pairs: 8, hintsPerLevel: 3, name: "Hard" }
+      };
+
+      // Game state
+      let gameState = {
+        currentLevel: 1,
+        totalScore: 0,
+        levelScore: 0,
+        matches: 0,
+        hintsLeft: 3,
+        selectedTerm: null,
+        selectedDefinition: null,
+        matchedPairs: [],
+        currentPairs: [],
+        shuffledTerms: [],
+        shuffledDefinitions: [],
+        completedLevels: []
+      };
+
+      // Default config
+      const defaultConfig = {
+        game_title: "🎯 Vocabulary Match Challenge",
+        instruction_text: "Select a level and match terms with their definitions!",
+        hint_button_text: "Get Hint",
+        background_color: "#1e3a8a",
+        text_color: "#ffffff",
+        card_color: "#ffffff",
+        accent_color: "#a855f7",
+        button_color: "#facc15",
+        font_family: "Poppins"
+      };
+
+      // Shuffle array
+      function shuffle(array) {
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+      }
+
+      // Select random pairs from question bank
+      function selectRandomPairs(count) {
+        const shuffled = shuffle(QUESTION_BANK);
+        return shuffled.slice(0, count).map((item, index) => ({
+          ...item,
+          id: index + 1
+        }));
+      }
+
+      // Start level
+      function startLevel(level) {
+        const levelConfig = LEVELS[level];
+        const pairs = selectRandomPairs(levelConfig.pairs);
+
+        gameState.currentLevel = level;
+        gameState.levelScore = 0;
+        gameState.matches = 0;
+        gameState.hintsLeft = levelConfig.hintsPerLevel;
+        gameState.selectedTerm = null;
+        gameState.selectedDefinition = null;
+        gameState.matchedPairs = [];
+        gameState.currentPairs = pairs;
+        gameState.shuffledTerms = shuffle(pairs);
+        gameState.shuffledDefinitions = shuffle(pairs);
+
+        document.getElementById('level-selector').classList.add('hidden');
+        document.getElementById('game-area').classList.remove('hidden');
+
+        updateUI();
+        renderCards();
+      }
+
+      // Update UI elements
+      function updateUI() {
+        document.getElementById('current-level').textContent = gameState.currentLevel;
+        document.getElementById('score').textContent = gameState.totalScore + gameState.levelScore;
+        document.getElementById('matches').textContent = `${gameState.matches}/${LEVELS[gameState.currentLevel].pairs}`;
+        document.getElementById('hints-left').textContent = gameState.hintsLeft;
+
+        const hintBtn = document.getElementById('hint-btn');
+        hintBtn.disabled = gameState.hintsLeft === 0;
+      }
+
+      // Render cards
+      function renderCards() {
+        const termsContainer = document.getElementById('terms-container');
+        const definitionsContainer = document.getElementById('definitions-container');
+
+        termsContainer.innerHTML = gameState.shuffledTerms.map(item => `
+          <div class="card term-card ${gameState.matchedPairs.includes(item.id) ? 'matched-dimmed' : ''}"
+               data-id="${item.id}"
+               style="border-color: ${item.color};">
+            <div class="term-card-content">
+              <div class="color-dot" style="background-color: ${item.color}"></div>
+              <p class="term-text">${item.term}</p>
+            </div>
+          </div>
+        `).join('');
+
+        definitionsContainer.innerHTML = gameState.shuffledDefinitions.map(item => `
+          <div class="card definition-card ${gameState.matchedPairs.includes(item.id) ? 'matched-dimmed' : ''}"
+               data-id="${item.id}">
+            <p class="definition-text">${item.definition}</p>
+          </div>
+        `).join('');
+
+        // Add event listeners
+        document.querySelectorAll('.term-card').forEach(card => {
+          if (!gameState.matchedPairs.includes(parseInt(card.dataset.id))) {
+            card.addEventListener('click', () => selectTerm(parseInt(card.dataset.id)));
+          }
+        });
+
+        document.querySelectorAll('.definition-card').forEach(card => {
+          if (!gameState.matchedPairs.includes(parseInt(card.dataset.id))) {
+            card.addEventListener('click', () => selectDefinition(parseInt(card.dataset.id)));
+          }
+        });
+
+        // Restore selection states
+        if (gameState.selectedTerm) {
+          const termCard = document.querySelector(`.term-card[data-id="${gameState.selectedTerm}"]`);
+          if (termCard) termCard.classList.add('selected');
+        }
+        if (gameState.selectedDefinition) {
+          const defCard = document.querySelector(`.definition-card[data-id="${gameState.selectedDefinition}"]`);
+          if (defCard) defCard.classList.add('selected');
+        }
+      }
+
+      // Select term
+      function selectTerm(id) {
+        if (gameState.matchedPairs.includes(id)) return;
+
+        document.querySelectorAll('.term-card').forEach(c => c.classList.remove('selected'));
+
+        gameState.selectedTerm = id;
+        const card = document.querySelector(`.term-card[data-id="${id}"]`);
+        card.classList.add('selected');
+
+        hideHint();
+        checkMatch();
+      }
+
+      // Select definition
+      function selectDefinition(id) {
+        if (gameState.matchedPairs.includes(id)) return;
+
+        document.querySelectorAll('.definition-card').forEach(c => c.classList.remove('selected'));
+
+        gameState.selectedDefinition = id;
+        const card = document.querySelector(`.definition-card[data-id="${id}"]`);
+        card.classList.add('selected');
+
+        hideHint();
+        checkMatch();
+      }
+
+      // Check for match
+      function checkMatch() {
+        if (gameState.selectedTerm === null || gameState.selectedDefinition === null) return;
+
+        const termCard = document.querySelector(`.term-card[data-id="${gameState.selectedTerm}"]`);
+        const defCard = document.querySelector(`.definition-card[data-id="${gameState.selectedDefinition}"]`);
+
+        if (gameState.selectedTerm === gameState.selectedDefinition) {
+          // Correct match!
+          gameState.matchedPairs.push(gameState.selectedTerm);
+          gameState.matches++;
+          gameState.levelScore += 100;
+
+          termCard.classList.remove('selected');
+          defCard.classList.remove('selected');
+          termCard.classList.add('matched');
+          defCard.classList.add('matched');
+
+          showFeedback(true);
+          createConfetti();
+
+          setTimeout(() => {
+            termCard.classList.add('matched-dimmed');
+            defCard.classList.add('matched-dimmed');
+
+            if (gameState.matches === LEVELS[gameState.currentLevel].pairs) {
+              completeLevel();
+            }
+          }, 500);
+        } else {
+          // Wrong match
+          gameState.levelScore = Math.max(0, gameState.levelScore - 25);
+
+          termCard.classList.add('wrong');
+          defCard.classList.add('wrong');
+
+          showFeedback(false);
+
+          setTimeout(() => {
+            termCard.classList.remove('selected', 'wrong');
+            defCard.classList.remove('selected', 'wrong');
+          }, 500);
+        }
+
+        gameState.selectedTerm = null;
+        gameState.selectedDefinition = null;
+        updateUI();
+      }
+
+      // Show feedback message
+      function showFeedback(correct) {
+        const feedback = document.getElementById('feedback');
+        const content = document.getElementById('feedback-content');
+
+        if (correct) {
+          content.className = 'feedback-content feedback-success';
+          content.innerHTML = '✨ Perfect Match! +100 points';
+        } else {
+          content.className = 'feedback-content feedback-error';
+          content.innerHTML = '❌ Try Again! -25 points';
+        }
+
+        feedback.classList.remove('hidden');
+
+        setTimeout(() => {
+          feedback.classList.add('hidden');
+        }, 1500);
+      }
+
+      // Create confetti
+      function createConfetti() {
+        const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+
+        for (let i = 0; i < 30; i++) {
+          const confetti = document.createElement('div');
+          confetti.className = 'confetti';
+          confetti.style.left = Math.random() * 100 + '%';
+          confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+          confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+          confetti.style.animationDelay = Math.random() * 0.5 + 's';
+          document.body.appendChild(confetti);
+
+          setTimeout(() => confetti.remove(), 3000);
+        }
+      }
+
+      // Show hint
+      function showHint() {
+        if (gameState.hintsLeft <= 0) return;
+
+        const unmatchedPair = gameState.currentPairs.find(item => !gameState.matchedPairs.includes(item.id));
+        if (!unmatchedPair) return;
+
+        gameState.hintsLeft--;
+        updateUI();
+
+        const hintMessage = document.getElementById('hint-message');
+        const hintText = document.getElementById('hint-text');
+        hintText.textContent = `💡 Hint: "${unmatchedPair.term}" matches with "${unmatchedPair.definition.substring(0, 20)}..."`;
+        hintMessage.classList.remove('hidden');
+
+        const termCard = document.querySelector(`.term-card[data-id="${unmatchedPair.id}"]`);
+        const defCard = document.querySelector(`.definition-card[data-id="${unmatchedPair.id}"]`);
+
+        if (termCard) termCard.classList.add('hint-highlight');
+        if (defCard) defCard.classList.add('hint-highlight');
+
+        setTimeout(hideHint, 3000);
+      }
+
+      // Hide hint
+      function hideHint() {
+        document.getElementById('hint-message').classList.add('hidden');
+        document.querySelectorAll('.hint-highlight').forEach(el => {
+          el.classList.remove('hint-highlight');
+        });
+      }
+
+      // Complete level
+      function completeLevel() {
+        gameState.totalScore += gameState.levelScore;
+        gameState.completedLevels.push(gameState.currentLevel);
+
+        document.getElementById('level-score').textContent = gameState.levelScore;
+        document.getElementById('modal-total-score').textContent = gameState.totalScore;
+
+        if (gameState.currentLevel === 3) {
+          showFinalVictory();
+        } else {
+          showLevelComplete();
+        }
+      }
+
+      // Show level complete modal
+      function showLevelComplete() {
+        const modal = document.getElementById('level-complete-modal');
+        modal.classList.remove('hidden');
+        createConfetti();
+
+        // Enable next level button
+        const nextLevelBtn = document.getElementById(`level-${gameState.currentLevel + 1}-btn`);
+        if (nextLevelBtn) {
+          nextLevelBtn.disabled = false;
+          nextLevelBtn.classList.add('completed');
+        }
+      }
+
+      // Show final victory modal
+      function showFinalVictory() {
+        const modal = document.getElementById('victory-modal');
+        document.getElementById('final-score').textContent = gameState.totalScore;
+        modal.classList.remove('hidden');
+
+        for (let i = 0; i < 3; i++) {
+          setTimeout(createConfetti, i * 500);
+        }
+      }
+
+      // Return to main menu
+      function returnToMenu() {
+        document.getElementById('level-complete-modal').classList.add('hidden');
+        document.getElementById('victory-modal').classList.add('hidden');
+        document.getElementById('game-area').classList.add('hidden');
+        document.getElementById('level-selector').classList.remove('hidden');
+      }
+
+      // Reset game
+      function resetGame() {
+        gameState = {
+          currentLevel: 1,
+          totalScore: 0,
+          levelScore: 0,
+          matches: 0,
+          hintsLeft: 3,
+          selectedTerm: null,
+          selectedDefinition: null,
+          matchedPairs: [],
+          currentPairs: [],
+          shuffledTerms: [],
+          shuffledDefinitions: [],
+          completedLevels: []
+        };
+
+        // Disable level buttons
+        document.getElementById('level-2-btn').disabled = true;
+        document.getElementById('level-3-btn').disabled = true;
+        document.getElementById('level-2-btn').classList.remove('completed');
+        document.getElementById('level-3-btn').classList.remove('completed');
+
+        returnToMenu();
+      }
+
+      // Apply config to UI
+      function applyConfig(config) {
+        document.getElementById('game-title').textContent = config.game_title || defaultConfig.game_title;
+        document.getElementById('instruction-text').textContent = config.instruction_text || defaultConfig.instruction_text;
+        document.getElementById('hint-btn-text').textContent = config.hint_button_text || defaultConfig.hint_button_text;
+
+        const fontFamily = config.font_family || defaultConfig.font_family;
+        document.body.style.fontFamily = `${fontFamily}, Poppins, sans-serif`;
+      }
+
+      // Element SDK initialization
+      if (window.elementSdk) {
+        window.elementSdk.init({
+          defaultConfig,
+          onConfigChange: async (config) => {
+            applyConfig(config);
+          },
+          mapToCapabilities: (config) => ({
+            recolorables: [
+              {
+                get: () => config.background_color || defaultConfig.background_color,
+                set: (value) => window.elementSdk.setConfig({ background_color: value })
+              },
+              {
+                get: () => config.card_color || defaultConfig.card_color,
+                set: (value) => window.elementSdk.setConfig({ card_color: value })
+              },
+              {
+                get: () => config.text_color || defaultConfig.text_color,
+                set: (value) => window.elementSdk.setConfig({ text_color: value })
+              },
+              {
+                get: () => config.accent_color || defaultConfig.accent_color,
+                set: (value) => window.elementSdk.setConfig({ accent_color: value })
+              },
+              {
+                get: () => config.button_color || defaultConfig.button_color,
+                set: (value) => window.elementSdk.setConfig({ button_color: value })
+              }
+            ],
+            borderables: [],
+            fontEditable: {
+              get: () => config.font_family || defaultConfig.font_family,
+              set: (value) => window.elementSdk.setConfig({ font_family: value })
+            },
+            fontSizeable: undefined
+          }),
+          mapToEditPanelValues: (config) => new Map([
+            ["game_title", config.game_title || defaultConfig.game_title],
+            ["instruction_text", config.instruction_text || defaultConfig.instruction_text],
+            ["hint_button_text", config.hint_button_text || defaultConfig.hint_button_text]
+          ])
+        });
+      }
+
+      // Event listeners
+      document.getElementById('hint-btn').addEventListener('click', showHint);
+      document.getElementById('next-level-btn').addEventListener('click', () => {
+        document.getElementById('level-complete-modal').classList.add('hidden');
+        startLevel(gameState.currentLevel + 1);
+      });
+      document.getElementById('back-to-menu-btn').addEventListener('click', returnToMenu);
+      document.getElementById('play-again-btn').addEventListener('click', resetGame);
+
+      // Level button listeners
+      document.querySelectorAll('.level-button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const level = parseInt(btn.dataset.level);
+          startLevel(level);
+        });
+      });
+    </script>
+    <script>
+      (function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9bd24aa4510c052e',t:'MTc2ODI4MDAyNC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
+    </script>
+  </body>
+</html>
