@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyCraft AI - Note-Taking Guide & LLM Learning Suite</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Inter Font -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(241, 245, 249, 0.5);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .dark ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+
+    /* Flashcard 3D Flip Effects */
+    .perspective-1000 {
+      perspective: 1000px;
+    }
+    .transform-style-3d {
+      transform-style: preserve-3d;
+    }
+    .backface-hidden {
+      backface-visibility: hidden;
+    }
+    .rotate-y-180 {
+      transform: rotateY(180deg);
+    }
+
+    /* AI Loading Pulse Animation */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.03); }
+    }
+    .ai-glow {
+      animation: pulseGlow 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-40 bg-white/90 dark:bg-slate-800/90 backdrop-blur border-b border-slate-200 dark:border-slate-700 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+          <i class="fa-solid fa-brain text-xl"></i>
+        </div>
+        <div>
+          <span class="font-extrabold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent dark:from-indigo-400 dark:to-purple-400">StudyCraft AI</span>
+          <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300">Gemini Powered</span>
+        </div>
+      </div>
+
+      <!-- Action Tools & Theme Switcher -->
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Toggle Theme">
+          <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+          <i class="fa-solid fa-sun hidden dark:block text-lg"></i>
+        </button>
+
+        <button onclick="openTutorModal()" class="flex items-center space-x-2 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium text-xs sm:text-sm shadow-md transition transform active:scale-95">
+          <i class="fa-solid fa-sparkles"></i>
+          <span class="hidden md:inline">Ask AI Tutor</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="bg-slate-100 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800 px-4">
+      <div class="max-w-7xl mx-auto flex space-x-1 sm:space-x-4 overflow-x-auto py-2 no-scrollbar text-xs sm:text-sm font-medium">
+        <button onclick="switchTab('article')" id="tab-article" class="tab-btn active px-3 sm:px-4 py-2 rounded-lg flex items-center space-x-2 whitespace-nowrap bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm font-semibold">
+          <i class="fa-solid fa-book-open"></i>
+          <span>Interactive Guide</span>
+        </button>
+
+        <button onclick="switchTab('transformer')" id="tab-transformer" class="tab-btn px-3 sm:px-4 py-2 rounded-lg flex items-center space-x-2 whitespace-nowrap text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white/50 dark:hover:bg-slate-800/50 transition">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>Note Transformer</span>
+        </button>
+
+        <button onclick="switchTab('mindmap')" id="tab-mindmap" class="tab-btn px-3 sm:px-4 py-2 rounded-lg flex items-center space-x-2 whitespace-nowrap text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white/50 dark:hover:bg-slate-800/50 transition">
+          <i class="fa-solid fa-diagram-project"></i>
+          <span>Mind Map Generator</span>
+        </button>
+
+        <button onclick="switchTab('flashcards')" id="tab-flashcards" class="tab-btn px-3 sm:px-4 py-2 rounded-lg flex items-center space-x-2 whitespace-nowrap text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white/50 dark:hover:bg-slate-800/50 transition">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>AI Flashcard Quiz</span>
+        </button>
+
+        <button onclick="switchTab('diagrams')" id="tab-diagrams" class="tab-btn px-3 sm:px-4 py-2 rounded-lg flex items-center space-x-2 whitespace-nowrap text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white/50 dark:hover:bg-slate-800/50 transition">
+          <i class="fa-solid fa-image"></i>
+          <span>AI Visual Study Aids</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: INTERACTIVE ARTICLE WITH LIVE AI    -->
+    <!-- ========================================== -->
+    <section id="view-article" class="tab-view space-y-8">
+      
+      <!-- Article Hero Header -->
+      <div class="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 rounded-2xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
+        <div class="absolute -right-10 -bottom-10 opacity-10 text-9xl">
+          <i class="fa-solid fa-graduation-cap"></i>
+        </div>
+        
+        <div class="relative z-10 max-w-3xl space-y-4">
+          <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur text-xs font-semibold text-indigo-200 border border-white/10">
+            <i class="fa-solid fa-feather-pointed"></i>
+            <span>Master Study Skills Guide</span>
+          </div>
+          <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight">
+            The Art of Note-Taking: Comparing Mind Maps, Cornell Method, and Outlining
+          </h1>
+          <p class="text-indigo-100 text-sm sm:text-base leading-relaxed">
+            Discover how active synthesis transforms passive study sessions into top grades. Enhanced with Gemini AI tools to summarize, quiz, and narrate your learning in real time.
+          </p>
+
+          <!-- AI Article Toolbar -->
+          <div class="pt-2 flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm">
+            <button onclick="playSectionAudio('full-article', 'Executive Summary of Note-Taking Methods')" class="px-3.5 py-2 rounded-lg bg-white/20 hover:bg-white/30 backdrop-blur font-medium flex items-center space-x-2 transition">
+              <i class="fa-solid fa-volume-high text-indigo-300"></i>
+              <span>Listen to AI Summary</span>
+            </button>
+
+            <button onclick="generateArticleQuiz()" class="px-3.5 py-2 rounded-lg bg-indigo-500/40 hover:bg-indigo-500/60 border border-indigo-300/30 backdrop-blur font-medium flex items-center space-x-2 transition">
+              <i class="fa-solid fa-circle-question text-purple-300"></i>
+              <span>Quiz Me on This Article</span>
+            </button>
+
+            <button onclick="openBlurtingModal('The Art of Note-Taking Overview')" class="px-3.5 py-2 rounded-lg bg-purple-500/40 hover:bg-purple-500/60 border border-purple-300/30 backdrop-blur font-medium flex items-center space-x-2 transition">
+              <i class="fa-solid fa-brain text-pink-300"></i>
+              <span>Blurting Recall Practice</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Article Content Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Column: Main Article Body -->
+        <article class="lg:col-span-8 bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-700 space-y-8">
+          
+          <p class="text-base sm:text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+            Have you ever spent hours re-reading a textbook before an exam, only to realize that almost none of the information stayed in your head? If so, you are not alone. Most middle and high school students struggle with studying—not because they aren't working hard, but because they are relying on <strong>passive studying</strong>. Simply reading pages or copying board notes word-for-word creates a false sense of security.
+          </p>
+
+          <p class="text-base sm:text-lg leading-relaxed text-slate-700 dark:text-slate-300">
+            Real learning happens when you engage in <strong>active synthesis</strong>—processing information in real time, organizing it logically, and translating complex concepts into your own words. That is where master note-taking comes in.
+          </p>
+
+          <hr class="border-slate-200 dark:border-slate-700">
+
+          <!-- Section 1 -->
+          <section class="space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                <span class="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm">1</span>
+                <span>Visual vs. Structured Linear Note-Taking</span>
+              </h2>
+              <button onclick="askAITutor('Explain the core difference between visual and linear note-taking for a middle school student.')" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center space-x-1">
+                <i class="fa-solid fa-sparkles"></i>
+                <span>Explain Simple</span>
+              </button>
+            </div>
+
+            <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
+              Before choosing a specific method, it helps to understand how your brain naturally absorbs information. Note-taking systems fall into two broad styles:
+            </p>
+
+            <ul class="space-y-3 pl-4 border-l-2 border-indigo-500">
+              <li class="text-slate-700 dark:text-slate-300">
+                <strong class="text-indigo-600 dark:text-indigo-400">Structured Linear Note-Taking:</strong> Follows a sequential, top-to-bottom hierarchy (e.g., Outlining, Cornell Method). Perfect for structured lectures, history timelines, and step-by-step scientific processes.
+              </li>
+              <li class="text-slate-700 dark:text-slate-300">
+                <strong class="text-purple-600 dark:text-purple-400">Visual Note-Taking:</strong> Uses spatial relationships, colors, and branching diagrams (e.g., Mind Mapping, Concept Diagrams). Taps into non-linear thinking, making it ideal for brainstorming and visual learners.
+              </li>
+            </ul>
+          </section>
+
+          <hr class="border-slate-200 dark:border-slate-700">
+
+          <!-- Section 2: Cornell Method -->
+          <section class="space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                <span class="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm">2</span>
+                <span>The Cornell Method (All-in-One Study System)</span>
+              </h2>
+              <button onclick="loadSampleIntoTransformer('cornell')" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center space-x-1">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>Try Sandbox</span>
+              </button>
+            </div>
+
+            <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
+              Developed in the 1940s by Walter Pauk at Cornell University, this format turns your notebook page into an interactive study tool.
+            </p>
+
+            <!-- Interactive Cornell Preview Component -->
+            <div class="bg-indigo-50/50 dark:bg-slate-900/60 rounded-xl p-4 sm:p-5 border border-indigo-100 dark:border-slate-700 space-y-3">
+              <div class="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider border-b border-indigo-200 dark:border-slate-700 pb-2">
+                Header: Course Title | Date | Chapter Reference
+              </div>
+              
+              <div class="grid grid-cols-1 sm:grid-cols-10 gap-3 text-xs sm:text-sm">
+                <div class="sm:col-span-3 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                  <span class="font-bold text-indigo-700 dark:text-indigo-300 block">Cue Column (30%)</span>
+                  <p class="text-slate-500 dark:text-slate-400 italic">• Main keywords?</p>
+                  <p class="text-slate-500 dark:text-slate-400 italic">• Potential test questions?</p>
+                  <p class="text-slate-500 dark:text-slate-400 italic">• Memory triggers?</p>
+                </div>
+                <div class="sm:col-span-7 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                  <span class="font-bold text-slate-800 dark:text-slate-200 block">Main Notes Column (70%)</span>
+                  <p class="text-slate-600 dark:text-slate-300">• Bulleted points taken during lecture.</p>
+                  <p class="text-slate-600 dark:text-slate-300">• Formulas, definitions, and class diagrams.</p>
+                  <p class="text-slate-600 dark:text-slate-300">• Concise abbreviations.</p>
+                </div>
+              </div>
+
+              <div class="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                <span class="font-bold text-purple-700 dark:text-purple-300 block mb-1">Summary Section (Bottom 5 lines)</span>
+                <p class="text-slate-600 dark:text-slate-300">A 2–3 sentence synthesis in your own words written within 24 hours of class.</p>
+              </div>
+            </div>
+
+            <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
+              <strong>Best Subjects:</strong> History, Biology, Physics, Civics, and Literature analysis.
+            </p>
+          </section>
+
+          <hr class="border-slate-200 dark:border-slate-700">
+
+          <!-- Section 3: Mind Mapping -->
+          <section class="space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                <span class="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm">3</span>
+                <span>Mind Mapping (The Visual Network)</span>
+              </h2>
+              <button onclick="switchTab('mindmap')" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center space-x-1">
+                <i class="fa-solid fa-diagram-project"></i>
+                <span>Generate Mind Map</span>
+              </button>
+            </div>
+
+            <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
+              If linear bullet points make your eyes glaze over, Mind Mapping harnesses visual memory and spatial association to make sense of interconnected concepts.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                <h4 class="font-bold text-indigo-600 dark:text-indigo-400 mb-1">1. Center Node</h4>
+                <p class="text-xs text-slate-600 dark:text-slate-400">Place the core topic (e.g. <em>Photosynthesis</em>) in the middle of a horizontal page.</p>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                <h4 class="font-bold text-indigo-600 dark:text-indigo-400 mb-1">2. Primary Branches</h4>
+                <p class="text-xs text-slate-600 dark:text-slate-400">Draw thick branches extending outward for major categories.</p>
+              </div>
+            </div>
+
+            <p class="text-slate-600 dark:text-slate-300 leading-relaxed">
+              <strong>Best Subjects:</strong> Geography, Essay Planning, Ecosystems, and Complex Plot Analysis.
+            </p>
+          </section>
+
+          <hr class="border-slate-200 dark:border-slate-700">
+
+          <!-- Section 4: Comparison Table -->
+          <section class="space-y-4">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Comparing Note-Taking Systems</h2>
+            
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs sm:text-sm border-collapse">
+                <thead>
+                  <tr class="bg-indigo-50 dark:bg-slate-900 text-indigo-900 dark:text-indigo-200">
+                    <th class="p-3 border border-slate-200 dark:border-slate-700">Criteria</th>
+                    <th class="p-3 border border-slate-200 dark:border-slate-700">Cornell Method</th>
+                    <th class="p-3 border border-slate-200 dark:border-slate-700">Mind Mapping</th>
+                    <th class="p-3 border border-slate-200 dark:border-slate-700">Outlining</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                  <tr>
+                    <td class="p-3 font-semibold border border-slate-200 dark:border-slate-700">Format</td>
+                    <td class="p-3 border border-slate-200 dark:border-slate-700">Structured Columns</td>
+                    <td class="p-3 border border-slate-200 dark:border-slate-700">Radial Diagram</td>
+                    <td class="p-3 border border-slate-200 dark:border-slate-700">Hierarchical List</td>
+                  </tr>
+                  <tr>
+                    <td class="p-3 font-semibold border border-slate-200 dark:border-slate-700">Active Recall</td>
+                    <td class="p-3 border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400 font-bold">Built-in (Cue Column)</td>
+                    <td class="p-3 border border-slate-200 dark:border-slate-700">Visual Association</td>
+                    <td class="p-3 border border-slate-200 dark:border-slate-700">Section Review</td>
+                  </tr>
+                  <tr>
+                    <td class="p-3 font-semibold border border-slate-200 dark:border-slate-700">Best For</td>
+                    <td class="p-3 border border-slate-200 dark:border-slate-700">Science & History</td>
+                    <td class="p-3 border border-slate-200 dark:border-slate-700">Essays & Brainstorming</td>
+                    <td class="p-3 border border-slate-200 dark:border-slate-700">Math & Computer Science</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <hr class="border-slate-200 dark:border-slate-700">
+
+          <!-- Section 5: Revision Techniques -->
+          <section class="space-y-4">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">3 Fast Revision Techniques</h2>
+
+            <div class="space-y-3">
+              <div class="p-4 rounded-xl bg-indigo-50/50 dark:bg-slate-900/50 border border-indigo-100 dark:border-slate-700 flex items-start space-x-3">
+                <div class="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</div>
+                <div>
+                  <h4 class="font-bold text-slate-900 dark:text-white text-sm">The 24-Hour Review Rule</h4>
+                  <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Revisit your notes for 5–10 minutes every evening. Your brain forgets up to 70% of new information within 24 hours if unreviewed.</p>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-indigo-50/50 dark:bg-slate-900/50 border border-indigo-100 dark:border-slate-700 flex items-start space-x-3">
+                <div class="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</div>
+                <div>
+                  <h4 class="font-bold text-slate-900 dark:text-white text-sm">Cover and Recite</h4>
+                  <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Cover the right notes column with a paper, look only at the left Cue Column keywords, and recite the concepts aloud from memory.</p>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-purple-50/50 dark:bg-slate-900/50 border border-purple-100 dark:border-slate-700 flex items-start space-x-3">
+                <div class="w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</div>
+                <div>
+                  <h4 class="font-bold text-slate-900 dark:text-white text-sm">Active Blurting Practice</h4>
+                  <p class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Study a topic for 5 minutes, close your book, and write down everything you remember on a blank sheet. Check gaps with AI evaluation!</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </article>
+
+        <!-- Right Column: Interactive AI Companion Widgets -->
+        <aside class="lg:col-span-4 space-y-6">
+          
+          <!-- AI Quick Note Transformer Card -->
+          <div class="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white shadow-lg space-y-4">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-wand-magic-sparkles text-xl text-yellow-300"></i>
+              <h3 class="font-bold text-lg">Instant AI Note Converter</h3>
+            </div>
+            <p class="text-xs text-indigo-100 leading-relaxed">
+              Have rough class notes or lecture transcripts? Transform them into structured study notes in seconds.
+            </p>
+            <button onclick="switchTab('transformer')" class="w-full py-2.5 bg-white text-indigo-700 font-bold text-xs rounded-xl shadow hover:bg-indigo-50 transition flex items-center justify-center space-x-2">
+              <span>Open Note Transformer</span>
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+
+          <!-- Active Study Stats & Progress Widget -->
+          <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+            <h3 class="font-bold text-slate-900 dark:text-white text-base flex items-center space-x-2">
+              <i class="fa-solid fa-fire text-amber-500"></i>
+              <span>Active Study Hub</span>
+            </h3>
+
+            <div class="grid grid-cols-2 gap-3 text-center">
+              <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-700">
+                <span id="quizScoreCount" class="block font-extrabold text-xl text-indigo-600 dark:text-indigo-400">0</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400">Quiz Points</span>
+              </div>
+              <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-700">
+                <span id="flashcardCount" class="block font-extrabold text-xl text-purple-600 dark:text-purple-400">0</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400">Cards Mastery</span>
+              </div>
+            </div>
+
+            <button onclick="openBlurtingModal('General Note-Taking Methods')" class="w-full py-2.5 bg-indigo-50 dark:bg-slate-700/50 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 font-semibold text-xs rounded-xl transition flex items-center justify-center space-x-2">
+              <i class="fa-solid fa-pen-clip"></i>
+              <span>Start Blurting Self-Test</span>
+            </button>
+          </div>
+
+        </aside>
+
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: AI NOTE TRANSFORMER                -->
+    <!-- ========================================== -->
+    <section id="view-transformer" class="tab-view hidden space-y-6">
+      
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-700 space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-indigo-600 dark:text-indigo-400"></i>
+            <span>AI Lecture Note Transformer</span>
+          </h2>
+          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Paste messy textbook text, raw transcripts, or class notes below. Gemini will structure them instantly into your preferred learning layout.
+          </p>
+        </div>
+
+        <!-- Input Area -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Source Text / Rough Notes</label>
+            <textarea id="transformerInput" rows="6" placeholder="Paste lecture notes or textbook paragraphs here... (e.g. Photosynthesis occurs in chloroplasts. Light reactions split water into oxygen and ATP...)" class="w-full p-4 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+          </div>
+
+          <!-- Format Selection Controls -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button onclick="selectTargetFormat('cornell')" id="fmt-cornell" class="fmt-btn active p-3 rounded-xl border-2 border-indigo-600 bg-indigo-50/50 dark:bg-slate-700/50 text-left transition">
+              <span class="font-bold text-xs text-indigo-700 dark:text-indigo-300 block">Cornell Method</span>
+              <span class="text-[11px] text-slate-500 dark:text-slate-400">Cues, Notes, and Summary</span>
+            </button>
+            
+            <button onclick="selectTargetFormat('outline')" id="fmt-outline" class="fmt-btn p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 text-left hover:border-indigo-300 transition">
+              <span class="font-bold text-xs text-slate-800 dark:text-slate-200 block">Structured Outline</span>
+              <span class="text-[11px] text-slate-500 dark:text-slate-400">Hierarchical Bullets</span>
+            </button>
+
+            <button onclick="selectTargetFormat('summary')" id="fmt-summary" class="fmt-btn p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 text-left hover:border-indigo-300 transition">
+              <span class="font-bold text-xs text-slate-800 dark:text-slate-200 block">Executive Summary</span>
+              <span class="text-[11px] text-slate-500 dark:text-slate-400">Key Takeaways & Formulas</span>
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between pt-2">
+            <button onclick="loadSampleText()" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+              <i class="fa-solid fa-lightbulb"></i> Load Sample Notes (Photosynthesis)
+            </button>
+
+            <button id="transformActionBtn" onclick="runNoteTransformation()" class="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-sm shadow-md transition flex items-center space-x-2">
+              <i class="fa-solid fa-sparkles"></i>
+              <span>Transform Notes</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Output Display Area -->
+        <div id="transformerOutputCard" class="hidden space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Transformed Result</h3>
+            <div class="flex space-x-2">
+              <button onclick="copyTransformedOutput()" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-xs font-semibold text-slate-700 dark:text-slate-200 transition">
+                <i class="fa-solid fa-copy"></i> Copy
+              </button>
+              <button onclick="speakTransformedText()" class="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/50 hover:bg-indigo-100 text-xs font-semibold text-indigo-600 dark:text-indigo-300 transition">
+                <i class="fa-solid fa-volume-high"></i> Listen (TTS)
+              </button>
+            </div>
+          </div>
+
+          <div id="transformerFormattedResult" class="p-5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 min-h-[150px] text-sm text-slate-800 dark:text-slate-200 space-y-4">
+            <!-- Dynamic Result -->
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: AI MIND MAP GENERATOR               -->
+    <!-- ========================================== -->
+    <section id="view-mindmap" class="tab-view hidden space-y-6">
+      
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-700 space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+            <i class="fa-solid fa-diagram-project text-purple-600 dark:text-purple-400"></i>
+            <span>Interactive AI Mind Map Visualizer</span>
+          </h2>
+          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Enter any subject or study topic. Gemini will generate a visual node hierarchy rendered dynamically on an interactive canvas.
+          </p>
+        </div>
+
+        <!-- Topic Search Input -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input id="mindmapTopicInput" type="text" placeholder="e.g. Causes of World War 1, Cell Structure, Periodic Table" value="Effective Note Taking Systems" class="flex-grow p-3.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none">
+          
+          <button id="generateMindMapBtn" onclick="generateAIMindMap()" class="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow transition flex items-center justify-center space-x-2 shrink-0">
+            <i class="fa-solid fa-sitemap"></i>
+            <span>Generate Mind Map</span>
+          </button>
+        </div>
+
+        <!-- Mind Map Canvas Viewport -->
+        <div class="relative w-full h-[450px] sm:h-[550px] rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shadow-inner">
+          <canvas id="mindMapCanvas" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+
+          <!-- Canvas Floating Controls -->
+          <div class="absolute bottom-4 right-4 flex space-x-2 bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 text-white text-xs">
+            <button onclick="zoomMindMap(1.1)" class="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 flex items-center justify-center" title="Zoom In"><i class="fa-solid fa-plus"></i></button>
+            <button onclick="zoomMindMap(0.9)" class="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 flex items-center justify-center" title="Zoom Out"><i class="fa-solid fa-minus"></i></button>
+            <button onclick="resetMindMapCamera()" class="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 flex items-center justify-center" title="Reset View"><i class="fa-solid fa-rotate-left"></i></button>
+          </div>
+
+          <div class="absolute top-4 left-4 bg-slate-800/80 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 text-xs">
+            <i class="fa-solid fa-hand-pointer mr-1"></i> Drag canvas to pan | Click nodes for AI details
+          </div>
+        </div>
+
+        <!-- Node Detail Drawer -->
+        <div id="mindMapNodeInfo" class="hidden p-4 rounded-xl bg-purple-50 dark:bg-slate-900 border border-purple-200 dark:border-slate-700 text-xs sm:text-sm text-slate-800 dark:text-slate-200">
+          <!-- Node Explanation loaded via AI -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: AI FLASHCARD & QUIZ GENERATOR      -->
+    <!-- ========================================== -->
+    <section id="view-flashcards" class="tab-view hidden space-y-6">
+      
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-700 space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+            <i class="fa-solid fa-layer-group text-emerald-600 dark:text-emerald-400"></i>
+            <span>AI Active Recall Flashcard Generator</span>
+          </h2>
+          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Generate custom interactive revision cards for active recall testing.
+          </p>
+        </div>
+
+        <!-- Generator Controls -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input id="flashcardTopicInput" type="text" placeholder="Enter topic or subject (e.g. Cornell Note Taking Rules)" value="Note-Taking & Memory Strategies" class="flex-grow p-3.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          
+          <button onclick="generateAIFlashcards()" class="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow transition flex items-center justify-center space-x-2 shrink-0">
+            <i class="fa-solid fa-bolt"></i>
+            <span>Generate Flashcards</span>
+          </button>
+        </div>
+
+        <!-- Flashcard Viewport Container -->
+        <div id="flashcardDeckContainer" class="hidden space-y-6">
+          <div class="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <span id="cardProgressText">Card 1 of 5</span>
+            <div class="flex space-x-2">
+              <button onclick="prevFlashcard()" class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200"><i class="fa-solid fa-chevron-left"></i></button>
+              <button onclick="nextFlashcard()" class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+          </div>
+
+          <!-- 3D Card Object -->
+          <div id="flashcardCard" onclick="flipFlashcard()" class="perspective-1000 w-full h-64 cursor-pointer">
+            <div id="cardInner" class="transform-style-3d transition-transform duration-500 w-full h-full relative rounded-2xl shadow-md border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-indigo-50/30 dark:from-slate-800 dark:to-slate-900 p-6 flex flex-col justify-between text-center">
+              
+              <!-- Front Side -->
+              <div id="cardFront" class="backface-hidden w-full h-full flex flex-col justify-center items-center space-y-3">
+                <span class="text-xs uppercase font-bold text-indigo-600 dark:text-indigo-400 tracking-wider">Question / Cue</span>
+                <p id="cardQuestionText" class="text-lg sm:text-xl font-bold text-slate-800 dark:text-white">Click generate to load your flashcards!</p>
+                <span class="text-xs text-slate-400 italic"><i class="fa-solid fa-rotate mr-1"></i> Click card to flip</span>
+              </div>
+
+              <!-- Back Side (Answer) -->
+              <div id="cardBack" class="backface-hidden rotate-y-180 absolute inset-0 p-6 flex flex-col justify-center items-center space-y-3 bg-indigo-900 text-white rounded-2xl">
+                <span class="text-xs uppercase font-bold text-indigo-300 tracking-wider">Answer & Explanation</span>
+                <p id="cardAnswerText" class="text-base sm:text-lg font-medium text-indigo-50"></p>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Card Evaluation Buttons -->
+          <div class="flex justify-center space-x-4">
+            <button onclick="rateFlashcard(false)" class="px-5 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300 font-bold text-xs hover:bg-rose-100 transition flex items-center space-x-2">
+              <i class="fa-solid fa-xmark"></i>
+              <span>Need Review</span>
+            </button>
+            <button onclick="rateFlashcard(true)" class="px-5 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300 font-bold text-xs hover:bg-emerald-100 transition flex items-center space-x-2">
+              <i class="fa-solid fa-check"></i>
+              <span>Got It Right</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 5: AI VISUAL DIAGRAM GENERATOR        -->
+    <!-- ========================================== -->
+    <section id="view-diagrams" class="tab-view hidden space-y-6">
+      
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-700 space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+            <i class="fa-solid fa-image text-pink-600 dark:text-pink-400"></i>
+            <span>AI Visual Study Aid Generator</span>
+          </h2>
+          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Generate custom educational diagrams, infographics, and visual memory sketches using Gemini 3.1 Flash Image.
+          </p>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Diagram Prompt</label>
+            <input id="diagramPromptInput" type="text" placeholder="e.g. A clear educational infographic showing the Cornell Note Taking layout with labeled zones" value="An educational infographic illustrating Mind Mapping vs Cornell Note Taking method with clear labeled sections" class="w-full p-3.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-pink-500 focus:outline-none">
+          </div>
+
+          <div class="flex justify-end">
+            <button id="generateDiagramBtn" onclick="generateAIDiagram()" class="px-6 py-3 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold text-sm shadow transition flex items-center space-x-2">
+              <i class="fa-solid fa-paint-brush"></i>
+              <span>Generate Illustration</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Diagram Output View -->
+        <div id="diagramResultContainer" class="hidden space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+          <h3 class="font-bold text-slate-900 dark:text-white text-base">Generated Study Graphic</h3>
+          
+          <div class="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 flex items-center justify-center min-h-[300px]">
+            <img id="generatedDiagramImg" src="" alt="AI Generated Diagram" class="max-h-[500px] w-auto object-contain">
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- AI TUTOR MODAL -->
+  <div id="tutorModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col h-[80vh] overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-sm">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-sm">StudyCraft AI Assistant</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">Ask anything about study methods, homework, or revisions</p>
+          </div>
+        </div>
+        <button onclick="closeTutorModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Chat History Area -->
+      <div id="chatHistory" class="flex-grow p-4 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <div class="flex items-start space-x-3">
+          <div class="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shrink-0">AI</div>
+          <div class="p-3.5 rounded-2xl bg-indigo-50 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 max-w-[85%]">
+            Hello! I am your AI study coach. Ask me to explain a concept, create a study schedule, or give study tips!
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Input Footer -->
+      <div class="p-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex space-x-2">
+        <input id="chatInput" type="text" placeholder="Type your question..." onkeypress="if(event.key==='Enter') sendChatMessage()" class="flex-grow p-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <button onclick="sendChatMessage()" class="px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition">
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- BLURTING PRACTICE MODAL -->
+  <div id="blurtingModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+      
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 dark:text-white text-base flex items-center space-x-2">
+          <i class="fa-solid fa-brain text-purple-600"></i>
+          <span>Active Blurting Recall Exercise</span>
+        </h3>
+        <button onclick="closeBlurtingModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <p id="blurtingTopicHeader" class="text-xs text-slate-500 dark:text-slate-400">
+        Topic: <strong id="blurtingTopicTitle">General Note-Taking Methods</strong>
+      </p>
+
+      <p class="text-xs text-slate-600 dark:text-slate-300">
+        Write down every single fact, rule, or concept you can remember about this topic without checking notes. Gemini will grade your recall completeness!
+      </p>
+
+      <textarea id="blurtingTextInput" rows="5" placeholder="Type everything you remember here..." class="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-xs sm:text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"></textarea>
+
+      <div class="flex justify-end space-x-2">
+        <button onclick="closeBlurtingModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
+        <button onclick="submitBlurtingTest()" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow transition">
+          Evaluate Memory
+        </button>
+      </div>
+
+      <div id="blurtingResultBox" class="hidden p-4 rounded-xl bg-purple-50 dark:bg-slate-900 border border-purple-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 space-y-2">
+        <!-- AI Evaluation Result -->
+      </div>
+
+    </div>
+  </div>
+
+  <!-- JavaScript Application Logic -->
+  <script>
+    const apiKey = ""; // API key supplied automatically at runtime
+    let currentSelectedFormat = 'cornell';
+    let currentMindMapData = null;
+    let currentFlashcards = [];
+    let activeCardIndex = 0;
+    let mindMapScale = 1;
+    let mindMapPanX = 0;
+    let mindMapPanY = 0;
+
+    // Helper: Exponential Backoff Fetch for Gemini API
+    async function callGemini(url, payload, retries = 3) {
+      let delay = 1000;
+      for (let i = 0; i < retries; i++) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            if (res.status === 429) {
+              await new Promise(r => setTimeout(r, delay));
+              delay *= 2;
+              continue;
+            }
+            throw new Error(`Gemini API Error HTTP ${res.status}`);
+          }
+          return await res.json();
+        } catch (err) {
+          if (i === retries - 1) throw err;
+          await new Promise(r => setTimeout(r, delay));
+          delay *= 2;
+        }
+      }
+    }
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-white', 'dark:bg-slate-800', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm', 'font-semibold');
+        btn.classList.add('text-slate-600', 'dark:text-slate-400');
+      });
+
+      const activeView = document.getElementById(`view-${tabId}`);
+      if (activeView) activeView.classList.remove('hidden');
+
+      const activeBtn = document.getElementById(`tab-${tabId}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-white', 'dark:bg-slate-800', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm', 'font-semibold');
+      }
+
+      if (tabId === 'mindmap' && !currentMindMapData) {
+        generateAIMindMap();
+      }
+    }
+
+    function selectTargetFormat(fmt) {
+      currentSelectedFormat = fmt;
+      document.querySelectorAll('.fmt-btn').forEach(b => {
+        b.classList.remove('border-indigo-600', 'bg-indigo-50/50', 'dark:bg-slate-700/50');
+      });
+      const activeBtn = document.getElementById(`fmt-${fmt}`);
+      if (activeBtn) activeBtn.classList.add('border-indigo-600', 'bg-indigo-50/50', 'dark:bg-slate-700/50');
+    }
+
+    function loadSampleText() {
+      document.getElementById('transformerInput').value = 
+        `Photosynthesis is the process used by plants, algae, and certain bacteria to harness energy from sunlight and turn it into chemical energy. There are two primary stages: Light-Dependent Reactions and the Calvin Cycle (Light-Independent Reactions). Light reactions take place in the thylakoid membranes of chloroplasts where sunlight splits water molecules into oxygen gas, hydrogen ions, and ATP. The Calvin Cycle occurs in the stroma, using carbon dioxide and ATP to synthesize glucose. Important factors affecting photosynthesis rate include light intensity, carbon dioxide concentration, and ambient temperature.`;
+    }
+
+    async function runNoteTransformation() {
+      const input = document.getElementById('transformerInput').value.trim();
+      if (!input) return alert('Please enter or paste some notes first!');
+
+      const btn = document.getElementById('transformActionBtn');
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Transforming...`;
+      btn.disabled = true;
+
+      const systemPrompt = `You are an expert educational note-formatting assistant. Convert the provided user text into the requested format cleanly using clean HTML formatting (with bold, lists, and clear headers). Format requested: ${currentSelectedFormat}.`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+      try {
+        const data = await callGemini(url, {
+          contents: [{ parts: [{ text: input }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] }
+        });
+
+        const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to transform notes.';
+        
+        document.getElementById('transformerOutputCard').classList.remove('hidden');
+        document.getElementById('transformerFormattedResult').innerHTML = textResult;
+      } catch (err) {
+        alert('Error transforming notes: ' + err.message);
+      } finally {
+        btn.innerHTML = `<i class="fa-solid fa-sparkles"></i> Transform Notes`;
+        btn.disabled = false;
+      }
+    }
+
+    function copyTransformedOutput() {
+      const text = document.getElementById('transformerFormattedResult').innerText;
+      document.execCommand('copy');
+      alert('Transformed notes copied to clipboard!');
+    }
+
+    async function speakTransformedText() {
+      const text = document.getElementById('transformerFormattedResult').innerText.slice(0, 300);
+      playSectionAudio('transformed-text', text);
+    }
+
+    async function playSectionAudio(sectionId, textPrompt) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+      
+      const payload = {
+        contents: [{ parts: [{ text: `Say in a clear, engaging tutor tone: ${textPrompt}` }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } }
+          }
+        }
+      };
+
+      try {
+        const data = await callGemini(url, payload);
+        const part = data.candidates?.[0]?.content?.parts?.[0];
+        const base64Audio = part?.inlineData?.data;
+
+        if (base64Audio) {
+          const sampleRate = 24000;
+          const pcmData = new Int16Array(base64ToBuffer(base64Audio));
+          const wavBlob = pcmToWav(pcmData, sampleRate);
+          const audioUrl = URL.createObjectURL(wavBlob);
+          
+          const audio = new Audio(audioUrl);
+          audio.play();
+        } else {
+          alert('Could not generate audio synthesis.');
+        }
+      } catch (err) {
+        alert('TTS Generation Error: ' + err.message);
+      }
+    }
+
+    function base64ToBuffer(base64) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    function pcmToWav(pcm16, sampleRate = 24000) {
+      const numChannels = 1;
+      const bitsPerSample = 16;
+      const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+      const blockAlign = numChannels * (bitsPerSample / 8);
+      const dataSize = pcm16.length * 2;
+      const buffer = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(buffer);
+
+      const writeString = (v, offset, str) => {
+        for (let i = 0; i < str.length; i++) v.setUint8(offset + i, str.charCodeAt(i));
+      };
+
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + dataSize, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitsPerSample, true);
+      writeString(view, 36, 'data');
+      view.setUint32(40, dataSize, true);
+
+      let offset = 44;
+      for (let i = 0; i < pcm16.length; i++, offset += 2) {
+        view.setInt16(offset, pcm16[i], true);
+      }
+
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    async function generateAIMindMap() {
+      const topic = document.getElementById('mindmapTopicInput').value.trim() || 'Note-Taking Systems';
+      const btn = document.getElementById('generateMindMapBtn');
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating Tree...`;
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: `Create a structured mind map hierarchy for the topic: "${topic}". Return JSON.` }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              title: { type: "STRING" },
+              children: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    name: { type: "STRING" },
+                    children: {
+                      type: "ARRAY",
+                      items: {
+                        type: "OBJECT",
+                        properties: { name: { type: "STRING" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      };
+
+      try {
+        const data = await callGemini(url, payload);
+        const jsonStr = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (jsonStr) {
+          currentMindMapData = JSON.parse(jsonStr);
+          renderMindMapCanvas();
+        }
+      } catch (err) {
+        alert('Mind Map error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-sitemap"></i> Generate Mind Map`;
+      }
+    }
+
+    function renderMindMapCanvas() {
+      const canvas = document.getElementById('mindMapCanvas');
+      if (!canvas || !currentMindMapData) return;
+      const ctx = canvas.getContext('2d');
+
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const centerX = canvas.width / 2 + mindMapPanX;
+      const centerY = canvas.height / 2 + mindMapPanY;
+
+      // Draw Root Node
+      ctx.fillStyle = '#6366f1';
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 40 * mindMapScale, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${12 * mindMapScale}px Inter`;
+      ctx.textAlign = 'center';
+      ctx.fillText(currentMindMapData.title.slice(0, 15), centerX, centerY + 4);
+
+      // Draw Children Branches
+      const children = currentMindMapData.children || [];
+      const angleStep = (Math.PI * 2) / children.length;
+
+      children.forEach((child, i) => {
+        const angle = i * angleStep;
+        const radius = 140 * mindMapScale;
+        const cx = centerX + Math.cos(angle) * radius;
+        const cy = centerY + Math.sin(angle) * radius;
+
+        // Draw Line
+        ctx.strokeStyle = '#a5b4fc';
+        ctx.lineWidth = 2 * mindMapScale;
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(cx, cy);
+        ctx.stroke();
+
+        // Draw Child Node
+        ctx.fillStyle = '#8b5cf6';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 28 * mindMapScale, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${10 * mindMapScale}px Inter`;
+        ctx.fillText(child.name.slice(0, 12), cx, cy + 4);
+      });
+    }
+
+    function zoomMindMap(factor) {
+      mindMapScale *= factor;
+      renderMindMapCanvas();
+    }
+
+    function resetMindMapCamera() {
+      mindMapScale = 1;
+      mindMapPanX = 0;
+      mindMapPanY = 0;
+      renderMindMapCanvas();
+    }
+
+    async function generateAIFlashcards() {
+      const topic = document.getElementById('flashcardTopicInput').value.trim() || 'Note-Taking Techniques';
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+      const payload = {
+        contents: [{ parts: [{ text: `Generate 5 active recall study flashcards on "${topic}".` }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                question: { type: "STRING" },
+                answer: { type: "STRING" }
+              }
+            }
+          }
+        }
+      };
+
+      try {
+        const data = await callGemini(url, payload);
+        const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (jsonText) {
+          currentFlashcards = JSON.parse(jsonText);
+          activeCardIndex = 0;
+          displayCurrentFlashcard();
+          document.getElementById('flashcardDeckContainer').classList.remove('hidden');
+        }
+      } catch (err) {
+        alert('Error generating flashcards: ' + err.message);
+      }
+    }
+
+    function displayCurrentFlashcard() {
+      if (!currentFlashcards.length) return;
+      const card = currentFlashcards[activeCardIndex];
+      document.getElementById('cardQuestionText').innerText = card.question;
+      document.getElementById('cardAnswerText').innerText = card.answer;
+      document.getElementById('cardProgressText').innerText = `Card ${activeCardIndex + 1} of ${currentFlashcards.length}`;
+      
+      const inner = document.getElementById('cardInner');
+      inner.classList.remove('rotate-y-180');
+    }
+
+    function flipFlashcard() {
+      const inner = document.getElementById('cardInner');
+      inner.classList.toggle('rotate-y-180');
+    }
+
+    function nextFlashcard() {
+      if (activeCardIndex < currentFlashcards.length - 1) {
+        activeCardIndex++;
+        displayCurrentFlashcard();
+      }
+    }
+
+    function prevFlashcard() {
+      if (activeCardIndex > 0) {
+        activeCardIndex--;
+        displayCurrentFlashcard();
+      }
+    }
+
+    function rateFlashcard(isCorrect) {
+      if (isCorrect) {
+        let count = parseInt(document.getElementById('flashcardCount').innerText) + 1;
+        document.getElementById('flashcardCount').innerText = count;
+      }
+      nextFlashcard();
+    }
+
+    async function generateAIDiagram() {
+      const prompt = document.getElementById('diagramPromptInput').value.trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById('generateDiagramBtn');
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Rendering Image...`;
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseModalities: ['IMAGE']
+        }
+      };
+
+      try {
+        const data = await callGemini(url, payload);
+        const base64Data = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+        if (base64Data) {
+          document.getElementById('diagramResultContainer').classList.remove('hidden');
+          document.getElementById('generatedDiagramImg').src = `data:image/png;base64,${base64Data}`;
+        } else {
+          alert('Could not render image.');
+        }
+      } catch (err) {
+        alert('Image Generation Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-paint-brush"></i> Generate Illustration`;
+      }
+    }
+
+    function openTutorModal() {
+      document.getElementById('tutorModal').classList.remove('hidden');
+    }
+
+    function closeTutorModal() {
+      document.getElementById('tutorModal').classList.add('hidden');
+    }
+
+    async function sendChatMessage() {
+      const inputEl = document.getElementById('chatInput');
+      const msg = inputEl.value.trim();
+      if (!msg) return;
+
+      const chatHistory = document.getElementById('chatHistory');
+      chatHistory.innerHTML += `
+        <div class="flex justify-end">
+          <div class="p-3 rounded-2xl bg-indigo-600 text-white max-w-[85%]">${msg}</div>
+        </div>
+      `;
+      inputEl.value = '';
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: msg }] }],
+        systemInstruction: { parts: [{ text: 'You are StudyCraft AI, an encouraging and clear educational coach for middle and high school students.' }] }
+      };
+
+      try {
+        const data = await callGemini(url, payload);
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'I am here to help!';
+
+        chatHistory.innerHTML += `
+          <div class="flex items-start space-x-3">
+            <div class="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shrink-0">AI</div>
+            <div class="p-3.5 rounded-2xl bg-indigo-50 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 max-w-[85%]">${reply}</div>
+          </div>
+        `;
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function openBlurtingModal(topic) {
+      document.getElementById('blurtingTopicTitle').innerText = topic;
+      document.getElementById('blurtingModal').classList.remove('hidden');
+    }
+
+    function closeBlurtingModal() {
+      document.getElementById('blurtingModal').classList.add('hidden');
+    }
+
+    async function submitBlurtingTest() {
+      const recallText = document.getElementById('blurtingTextInput').value.trim();
+      const topic = document.getElementById('blurtingTopicTitle').innerText;
+      if (!recallText) return;
+
+      const box = document.getElementById('blurtingResultBox');
+      box.classList.remove('hidden');
+      box.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Gemini is evaluating your recall completeness...`;
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: `Topic: "${topic}". User Recall Attempt: "${recallText}". Evaluate recall completeness, list key points missed, and give a score out of 100.` }] }]
+      };
+
+      try {
+        const data = await callGemini(url, payload);
+        const evaluation = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Evaluation complete!';
+        box.innerHTML = `<strong class="text-purple-600 dark:text-purple-400 block mb-1">AI Recall Assessment:</strong> ${evaluation}`;
+      } catch (err) {
+        box.innerHTML = 'Error evaluating recall.';
+      }
+    }
+
+    // Initialize Canvas on load
+    window.onload = function() {
+      renderMindMapCanvas();
+      window.addEventListener('resize', renderMindMapCanvas);
+    };
+  </script>
+</body>
+</html>
