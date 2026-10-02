@@ -769,7 +769,10 @@
     // Optional site-wide default key. Leave empty unless it is a Google AI Studio key restricted
     // to this site's HTTP referrer (website restriction) and to the Generative Language API:
     // anything in this file is public. Users can supply their own key at runtime instead.
-    const DEFAULT_API_KEY = "";
+    const DEFAULT_API_KEY = (() => {
+      const k = "__GEMINI_API_KEY__";
+      return k.startsWith("__") ? "" : k;
+    })();
     // Session-only key pasted by the user: kept in memory only (never stored, logged or sent anywhere except Google).
     let userApiKey = "";
 
