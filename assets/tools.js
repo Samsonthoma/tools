@@ -3,10 +3,10 @@
    <script src="assets/site.js" defer></script> in the new page's <head>.
    The navigation bar and the home page pick it up automatically. */
 window.SITE = {
-  name: "SIS Tools",
+  name: "TSIS Tools",
   baseUrl: "https://tools.thesouthindianschool.in",
   school: { name: "The South Indian School", url: "https://thesouthindianschool.in" },
-  developer: { name: "Samson Thoma", url: "https://samsonthoma.github.io/" },
+  developer: { name: "Samson Thomas", url: "https://samsonthoma.github.io/" },
   tools: [
     { title: "Utility Toolkit", href: "utility-toolkit.html", icon: "🧰", color: "#2563eb",
       desc: "Unit converter, password generator, Markdown previewer and timer." },
