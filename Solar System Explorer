@@ -1,0 +1,24 @@
+<div style="text-align: center;"><br /></div><div style="text-align: center;"><br /></div><div style="text-align: center;"><div class="separator" style="clear: both; text-align: left;"><a href="https://blogger.googleusercontent.com/img/a/AVvXsEjE4gO7dm4Cf_yo60XXIggjDBgvH9FiYpBdCBpiqLHUX5EgYkS0sNeU5v2G5ZyoSSlJjW9tcjtPKL-vsFTXaON5GnT4hFyMSTf551ytQ9m-5j6CunNBYcmpx4mN49suY5S__CMILD-YyG7UPoeYEfx8KdjvcMRce95eOXJBbDUIhDHFcA627Tc4T8NW62Nd" style="margin-left: 1em; margin-right: 1em;"><img alt="Solar System" data-original-height="482" data-original-width="918" src="https://blogger.googleusercontent.com/img/a/AVvXsEjE4gO7dm4Cf_yo60XXIggjDBgvH9FiYpBdCBpiqLHUX5EgYkS0sNeU5v2G5ZyoSSlJjW9tcjtPKL-vsFTXaON5GnT4hFyMSTf551ytQ9m-5j6CunNBYcmpx4mN49suY5S__CMILD-YyG7UPoeYEfx8KdjvcMRce95eOXJBbDUIhDHFcA627Tc4T8NW62Nd=s16000" title="Solar System" hidden/></a></div><br /><iframe height="700" src="https://thesouthindianschool.in/SolarSystemExplorer.html" style="border: none;" width="100%" >
+</iframe>&nbsp;</div><div style="text-align: center;">
+<style>
+.fullscreen-btn {
+  display: inline-block;
+  padding: 16px 32px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #fff;
+  background: linear-gradient(135deg, #ff6a00, #ee0979);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+.fullscreen-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.35);
+}
+</style>
+<a class="fullscreen-btn" href="https://thesouthindianschool.in/SolarSystemExplorer.html" onclick="openFullscreen(event)" target="_blank">
+   🚀 Explore the Solar System in Full Screen</a></div><div style="text-align: center;"><br /></div><div style="text-align: center;"><br /></div>
