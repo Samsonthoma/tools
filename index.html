@@ -3,7 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Tool Hub</title>
+    <title>Free Online Tools – Unit Converter, Password Generator, Markdown &amp; Timer | The South Indian School</title>
+    <meta name="description" content="Free, fast and private online tools by The South Indian School: unit converter, secure password generator, Markdown previewer and timer. Works in your browser.">
+    <meta name="keywords" content="online tools, unit converter, password generator, markdown previewer, timer, The South Indian School, student tools">
+    <meta name="author" content="Samson Thoma">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#2563eb">
+    <link rel="canonical" href="https://tools.thesouthindianschool.in/">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="The South Indian School Tools">
+    <meta property="og:title" content="Free Online Tools | The South Indian School">
+    <meta property="og:description" content="Unit converter, password generator, Markdown previewer and timer – free and private.">
+    <meta property="og:url" content="https://tools.thesouthindianschool.in/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Free Online Tools | The South Indian School">
+    <meta name="twitter:description" content="Unit converter, password generator, Markdown previewer and timer – free and private.">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"WebSite","name":"The South Indian School Tools","url":"https://tools.thesouthindianschool.in/","publisher":{"@type":"EducationalOrganization","name":"The South Indian School","url":"https://thesouthindianschool.in"},"author":{"@type":"Person","name":"Samson Thoma","url":"https://samsonthoma.github.io/"}}
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -34,6 +51,23 @@
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
+
+    <!-- Responsive site navigation -->
+    <nav class="sticky top-0 z-50 bg-white/95 backdrop-blur shadow-sm" aria-label="Site">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+            <a href="/" class="font-bold text-lg text-slate-900"><i class="fas fa-toolbox text-blue-600 mr-2"></i>SIS Tools</a>
+            <button id="menu-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="site-menu" class="md:hidden p-2 text-slate-700">
+                <i class="fas fa-bars fa-lg"></i>
+            </button>
+            <ul id="site-menu" class="hidden md:flex flex-col md:flex-row absolute md:static top-full left-0 right-0 bg-white md:bg-transparent shadow md:shadow-none px-4 py-3 md:p-0 gap-1 md:gap-6 font-medium text-slate-600">
+                <li><a href="#main-nav" class="block py-2 hover:text-blue-600">Tools</a></li>
+                <li><a href="Solar%20System%20Explorer" class="block py-2 hover:text-blue-600">Solar System</a></li>
+                <li><a href="Periodic%20Table%20Explorer" class="block py-2 hover:text-blue-600">Periodic Table</a></li>
+                <li><a href="https://thesouthindianschool.in" target="_blank" rel="noopener" class="block py-2 hover:text-blue-600">The South Indian School</a></li>
+                <li><a href="https://samsonthoma.github.io/" target="_blank" rel="noopener author" class="block py-2 hover:text-blue-600">Developer</a></li>
+            </ul>
+        </div>
+    </nav>
 
     <div class="max-w-6xl mx-auto px-4 py-8">
         <!-- Header -->
@@ -358,6 +392,21 @@
         // Initial password
         generatePassword();
 
+    </script>
+    <footer class="text-center text-sm text-slate-500 py-6">
+        &copy; <a href="https://thesouthindianschool.in" target="_blank" rel="noopener" class="hover:text-blue-600">The South Indian School</a>
+        &middot; Developed by <a href="https://samsonthoma.github.io/" target="_blank" rel="noopener author" class="hover:text-blue-600">Samson Thoma</a>
+    </footer>
+    <script>
+        const menuBtn = document.getElementById('menu-toggle');
+        const menu = document.getElementById('site-menu');
+        menuBtn.addEventListener('click', () => {
+            const open = menu.classList.toggle('hidden') === false;
+            menuBtn.setAttribute('aria-expanded', open);
+        });
+        menu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+            menu.classList.add('hidden'); menuBtn.setAttribute('aria-expanded', false);
+        }));
     </script>
 </body>
 </html>

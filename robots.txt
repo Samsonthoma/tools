@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://tools.thesouthindianschool.in/sitemap.xml
