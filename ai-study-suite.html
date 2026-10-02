@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="referrer" content="no-referrer">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Note-taking guide and LLM learning suite to study smarter.">
@@ -765,7 +766,56 @@
 
   <!-- JavaScript Application Logic -->
   <script>
-    const apiKey = ""; // API key supplied automatically at runtime
+    // Optional site-wide default key. Leave empty unless it is a Google AI Studio key restricted
+    // to this site's HTTP referrer (website restriction) and to the Generative Language API:
+    // anything in this file is public. Users can supply their own key at runtime instead.
+    const DEFAULT_API_KEY = "";
+    // Session-only key pasted by the user: kept in memory only (never stored, logged or sent anywhere except Google).
+    let userApiKey = "";
+
+    function askForApiKey(reason) {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.innerHTML = `
+          <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl text-slate-800 dark:text-slate-100">
+            <h2 class="text-lg font-bold mb-2">Gemini API key needed</h2>
+            <p class="text-sm mb-3" id="apiKeyReason"></p>
+            <p class="text-sm mb-3">Get a free key from
+              <a class="text-indigo-600 underline" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>
+              and paste it below. It is used for this browser session only: kept in memory, never saved, and sent only to Google's Gemini API. Closing or reloading this page forgets it.</p>
+            <input id="apiKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your Gemini API key"
+              class="w-full p-3 border rounded-lg bg-white dark:bg-slate-900 dark:border-slate-600 mb-4 outline-none focus:ring-2 focus:ring-indigo-400">
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Never share your key with others. You can delete it any time in Google AI Studio.</p>
+            <div class="flex justify-end gap-2">
+              <button id="apiKeyCancel" type="button" class="px-4 py-2 rounded-lg border dark:border-slate-600">Cancel</button>
+              <button id="apiKeyOk" type="button" class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold">Use for this session</button>
+            </div>
+          </div>`;
+        overlay.querySelector('#apiKeyReason').textContent = reason;
+        document.body.appendChild(overlay);
+        const input = overlay.querySelector('#apiKeyInput');
+        input.focus();
+        const done = v => { overlay.remove(); resolve(v); };
+        overlay.querySelector('#apiKeyCancel').onclick = () => done(null);
+        overlay.querySelector('#apiKeyOk').onclick = () => {
+          const v = input.value.trim();
+          if (/^[A-Za-z0-9_\-]{20,100}$/.test(v)) done(v);
+          else { input.classList.add('border-red-500'); input.value = ''; input.placeholder = 'That does not look like a valid key'; }
+        };
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') overlay.querySelector('#apiKeyOk').click(); });
+      });
+    }
+
+    async function ensureApiKey(reason) {
+      if (userApiKey || DEFAULT_API_KEY) return true;
+      const k = await askForApiKey(reason || 'This tool needs a Google Gemini API key to work.');
+      if (!k) return false;
+      userApiKey = k;
+      return true;
+    }
     let currentSelectedFormat = 'cornell';
     let currentMindMapData = null;
     let currentFlashcards = [];
@@ -775,16 +825,28 @@
     let mindMapPanY = 0;
 
     // Helper: Exponential Backoff Fetch for Gemini API
-    async function callGemini(url, payload, retries = 3) {
+    async function callGemini(url, payload, retries = 3, askedUser = false) {
+      if (!(await ensureApiKey())) throw new Error('A Gemini API key is required. Please provide one and try again.');
       let delay = 1000;
       for (let i = 0; i < retries; i++) {
         try {
           const res = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            referrerPolicy: 'no-referrer',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': userApiKey || DEFAULT_API_KEY },
             body: JSON.stringify(payload)
           });
           if (!res.ok) {
+            // Invalid/expired key (400/401/403) or exhausted quota (429): ask the user for their own key.
+            const keyProblem = [400, 401, 403].includes(res.status);
+            if ((keyProblem || (res.status === 429 && i === retries - 1)) && !askedUser) {
+              userApiKey = '';
+              const reason = res.status === 429
+                ? 'The shared Gemini quota is exhausted. Paste your own free API key to continue.'
+                : 'The Gemini API key was rejected. Paste a valid API key to continue.';
+              if (await ensureApiKey(reason)) return callGemini(url, payload, retries, true);
+              throw new Error('Gemini API key required (HTTP ' + res.status + ')');
+            }
             if (res.status === 429) {
               await new Promise(r => setTimeout(r, delay));
               delay *= 2;
@@ -794,7 +856,7 @@
           }
           return await res.json();
         } catch (err) {
-          if (i === retries - 1) throw err;
+          if (i === retries - 1 || /key required|key is required/i.test(err.message)) throw err;
           await new Promise(r => setTimeout(r, delay));
           delay *= 2;
         }
@@ -848,7 +910,7 @@
       btn.disabled = true;
 
       const systemPrompt = `You are an expert educational note-formatting assistant. Convert the provided user text into the requested format cleanly using clean HTML formatting (with bold, lists, and clear headers). Format requested: ${currentSelectedFormat}.`;
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
 
       try {
         const data = await callGemini(url, {
@@ -880,7 +942,7 @@
     }
 
     async function playSectionAudio(sectionId, textPrompt) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent`;
       
       const payload = {
         contents: [{ parts: [{ text: `Say in a clear, engaging tutor tone: ${textPrompt}` }] }],
@@ -963,7 +1025,7 @@
       btn.disabled = true;
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating Tree...`;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: `Create a structured mind map hierarchy for the topic: "${topic}". Return JSON.` }] }],
         generationConfig: {
@@ -1076,7 +1138,7 @@
 
     async function generateAIFlashcards() {
       const topic = document.getElementById('flashcardTopicInput').value.trim() || 'Note-Taking Techniques';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
 
       const payload = {
         contents: [{ parts: [{ text: `Generate 5 active recall study flashcards on "${topic}".` }] }],
@@ -1155,7 +1217,7 @@
       btn.disabled = true;
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Rendering Image...`;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
@@ -1203,7 +1265,7 @@
       inputEl.value = '';
       chatHistory.scrollTop = chatHistory.scrollHeight;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: msg }] }],
         systemInstruction: { parts: [{ text: 'You are StudyCraft AI, an encouraging and clear educational coach for middle and high school students.' }] }
@@ -1243,7 +1305,7 @@
       box.classList.remove('hidden');
       box.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Gemini is evaluating your recall completeness...`;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: `Topic: "${topic}". User Recall Attempt: "${recallText}". Evaluate recall completeness, list key points missed, and give a score out of 100.` }] }]
       };

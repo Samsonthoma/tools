@@ -6,7 +6,7 @@
     <title>Free Online Tools – Unit Converter, Password Generator, Markdown &amp; Timer | The South Indian School</title>
     <meta name="description" content="Free, fast and private online tools by The South Indian School: unit converter, secure password generator, Markdown previewer and timer. Works in your browser.">
     <meta name="keywords" content="online tools, unit converter, password generator, markdown previewer, timer, The South Indian School, student tools">
-    <meta name="author" content="Samson Thoma">
+    <meta name="author" content="Samson Thomas">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#2563eb">
     <link rel="canonical" href="https://tools.thesouthindianschool.in/utility-toolkit.html">
@@ -19,7 +19,7 @@
     <meta name="twitter:title" content="Free Online Tools | The South Indian School">
     <meta name="twitter:description" content="Unit converter, password generator, Markdown previewer and timer – free and private.">
     <script type="application/ld+json">
-    {"@context":"https://schema.org","@type":"WebSite","name":"The South Indian School Tools","url":"https://tools.thesouthindianschool.in/","publisher":{"@type":"EducationalOrganization","name":"The South Indian School","url":"https://thesouthindianschool.in"},"author":{"@type":"Person","name":"Samson Thoma","url":"https://samsonthoma.github.io/"}}
+    {"@context":"https://schema.org","@type":"WebSite","name":"The South Indian School Tools","url":"https://tools.thesouthindianschool.in/","publisher":{"@type":"EducationalOrganization","name":"The South Indian School","url":"https://thesouthindianschool.in"},"author":{"@type":"Person","name":"Samson Thomas","url":"https://samsonthoma.github.io/"}}
     </script>
     <script src="assets/site.js" defer></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -84,38 +84,20 @@
                     <h2 class="text-2xl font-bold mb-6 flex items-center">
                         <i class="fas fa-exchange-alt text-blue-500 mr-3"></i> Unit Converter
                     </h2>
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold mb-2" for="unit-category">Quantity</label>
+                        <select id="unit-category" class="w-full p-3 border rounded-lg bg-white"></select>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-sm font-semibold mb-2">From</label>
                             <input type="number" id="unit-input" placeholder="Value" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none mb-4">
-                            <select id="unit-from" class="w-full p-3 border rounded-lg bg-white">
-                                <optgroup label="Length">
-                                    <option value="m">Meters</option>
-                                    <option value="km">Kilometers</option>
-                                    <option value="ft">Feet</option>
-                                    <option value="mi">Miles</option>
-                                </optgroup>
-                                <optgroup label="Weight">
-                                    <option value="kg">Kilograms</option>
-                                    <option value="lb">Pounds</option>
-                                </optgroup>
-                            </select>
+                            <select id="unit-from" class="w-full p-3 border rounded-lg bg-white"></select>
                         </div>
                         <div class="flex flex-col justify-end">
                             <label class="block text-sm font-semibold mb-2">To</label>
                             <div id="unit-output" class="w-full p-3 bg-slate-100 border rounded-lg font-mono text-xl mb-4 h-[50px] flex items-center">0</div>
-                            <select id="unit-to" class="w-full p-3 border rounded-lg bg-white">
-                                <optgroup label="Length">
-                                    <option value="m">Meters</option>
-                                    <option value="km" selected>Kilometers</option>
-                                    <option value="ft">Feet</option>
-                                    <option value="mi">Miles</option>
-                                </optgroup>
-                                <optgroup label="Weight">
-                                    <option value="kg">Kilograms</option>
-                                    <option value="lb">Pounds</option>
-                                </optgroup>
-                            </select>
+                            <select id="unit-to" class="w-full p-3 border rounded-lg bg-white"></select>
                         </div>
                     </div>
                 </div>
@@ -234,28 +216,61 @@
         }
 
         // --- CONVERTER LOGIC ---
-        const unitRatios = {
-            m: 1, km: 1000, ft: 0.3048, mi: 1609.34,
-            kg: 1, lb: 0.453592
+        // Each unit is only convertible within its own physical quantity.
+        // Linear units use a factor to the base unit; temperature uses toBase/fromBase.
+        const unitCategories = {
+            Length: { base: 'm', units: { m: ['Meters', 1], km: ['Kilometers', 1000], cm: ['Centimeters', 0.01], mm: ['Millimeters', 0.001], mi: ['Miles', 1609.344], yd: ['Yards', 0.9144], ft: ['Feet', 0.3048], in: ['Inches', 0.0254] } },
+            Mass: { base: 'kg', units: { kg: ['Kilograms', 1], g: ['Grams', 0.001], mg: ['Milligrams', 1e-6], t: ['Tonnes', 1000], lb: ['Pounds', 0.45359237], oz: ['Ounces', 0.028349523125] } },
+            Temperature: { base: 'c', units: {
+                c: ['Celsius', { to: v => v, from: v => v }],
+                f: ['Fahrenheit', { to: v => (v - 32) * 5 / 9, from: v => v * 9 / 5 + 32 }],
+                k: ['Kelvin', { to: v => v - 273.15, from: v => v + 273.15 }] } },
+            Time: { base: 's', units: { s: ['Seconds', 1], min: ['Minutes', 60], h: ['Hours', 3600], d: ['Days', 86400], wk: ['Weeks', 604800] } },
+            Volume: { base: 'l', units: { l: ['Liters', 1], ml: ['Milliliters', 0.001], gal: ['US Gallons', 3.785411784], cup: ['US Cups', 0.2365882365] } },
+            Speed: { base: 'ms', units: { ms: ['Meters/second', 1], kmh: ['Kilometers/hour', 1 / 3.6], mph: ['Miles/hour', 0.44704], kn: ['Knots', 0.514444] } },
+            Area: { base: 'm2', units: { m2: ['Square meters', 1], km2: ['Square kilometers', 1e6], ha: ['Hectares', 10000], ft2: ['Square feet', 0.09290304], ac: ['Acres', 4046.8564224] } }
         };
 
+        const unitCategory = document.getElementById('unit-category');
         const unitInput = document.getElementById('unit-input');
         const unitFrom = document.getElementById('unit-from');
         const unitTo = document.getElementById('unit-to');
         const unitOutput = document.getElementById('unit-output');
 
+        function fillUnits() {
+            const units = unitCategories[unitCategory.value].units;
+            const opts = Object.keys(units).map(k => `<option value="${k}">${units[k][0]}</option>`).join('');
+            unitFrom.innerHTML = opts;
+            unitTo.innerHTML = opts;
+            const keys = Object.keys(units);
+            unitTo.value = keys[1] || keys[0];
+            convert();
+        }
+
+        function toBase(cat, unit, v) {
+            const f = cat.units[unit][1];
+            return typeof f === 'object' ? f.to(v) : v * f;
+        }
+        function fromBase(cat, unit, v) {
+            const f = cat.units[unit][1];
+            return typeof f === 'object' ? f.from(v) : v / f;
+        }
+
         function convert() {
             const val = parseFloat(unitInput.value);
-            if(isNaN(val)) {
+            const cat = unitCategories[unitCategory.value];
+            if (isNaN(val) || !cat.units[unitFrom.value] || !cat.units[unitTo.value]) {
                 unitOutput.innerText = '0';
                 return;
             }
-            const baseValue = val * unitRatios[unitFrom.value];
-            const result = baseValue / unitRatios[unitTo.value];
-            unitOutput.innerText = result.toLocaleString(undefined, { maximumFractionDigits: 4 });
+            const result = fromBase(cat, unitTo.value, toBase(cat, unitFrom.value, val));
+            unitOutput.innerText = result.toLocaleString(undefined, { maximumFractionDigits: 6 });
         }
 
+        unitCategory.innerHTML = Object.keys(unitCategories).map(k => `<option value="${k}">${k}</option>`).join('');
+        unitCategory.addEventListener('change', fillUnits);
         [unitInput, unitFrom, unitTo].forEach(el => el.addEventListener('input', convert));
+        fillUnits();
 
         // --- PASSWORD LOGIC ---
         const passDisplay = document.getElementById('password-display');

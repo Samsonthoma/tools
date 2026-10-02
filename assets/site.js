@@ -6,6 +6,14 @@
   function load(src, cb) { var s = document.createElement('script'); s.src = src; s.onload = cb; document.head.appendChild(s); }
   var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = base + 'assets/site.css'; document.head.appendChild(css);
 
+  [['icon', 'favicon.ico', 'image/x-icon'], ['apple-touch-icon', 'logo.png', 'image/png']].forEach(function (i) {
+    var l = document.createElement('link'); l.rel = i[0]; l.href = base + i[1]; l.type = i[2]; document.head.appendChild(l);
+  });
+  [['name', 'author', 'Samson Thomas'], ['property', 'og:image', base + 'logo.png'], ['name', 'twitter:image', base + 'logo.png']].forEach(function (m) {
+    if (document.head.querySelector('meta[' + m[0] + '="' + m[1] + '"]')) return;
+    var e = document.createElement('meta'); e.setAttribute(m[0], m[1]); e.content = m[2]; document.head.appendChild(e);
+  });
+
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
   function build() {
@@ -20,7 +28,7 @@
 
     var nav = document.createElement('nav');
     nav.className = 'sis-nav'; nav.setAttribute('aria-label', 'Site');
-    nav.innerHTML = '<div class="sis-nav-inner"><a class="sis-brand" href="' + base + '">🧰 ' + esc(S.name) + '</a>' +
+    nav.innerHTML = '<div class="sis-nav-inner"><a class="sis-brand" href="' + base + '"><img src="' + base + 'logo.png" alt="" width="28" height="28" style="vertical-align:middle;margin-right:8px;border-radius:6px">' + esc(S.name) + '</a>' +
       '<button class="sis-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">' +
       '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>' +
       '<ul class="sis-menu">' + links + '</ul></div>';
