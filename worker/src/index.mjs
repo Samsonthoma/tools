@@ -13,6 +13,9 @@ const ALLOWED_MODELS = new Set([
   'gemini-3.1-flash-image'
 ]);
 
+class InvalidGoogleTokenError extends Error {}
+class PaymentMismatchError extends Error {}
+
 function freeDailyLimit(env) {
   const configured = Number(env.FREE_DAILY_LIMIT);
   return Number.isInteger(configured) && configured > 0 && configured <= 100
@@ -26,7 +29,11 @@ let googleKeysExpiresAt = 0;
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers }
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      ...headers
+    }
   });
 }
 
@@ -64,15 +71,23 @@ async function loadGoogleKeys(forceRefresh = false) {
 
 async function verifyGoogleIdToken(token, clientId) {
   const segments = token.split('.');
-  if (segments.length !== 3) throw new Error('Invalid Google sign-in token');
+  if (segments.length !== 3) throw new InvalidGoogleTokenError('Invalid Google sign-in token');
   const [encodedHeader, encodedClaims, encodedSignature] = segments;
-  const header = decodeJwtPart(encodedHeader);
-  const claims = decodeJwtPart(encodedClaims);
-  if (header.alg !== 'RS256' || !header.kid) throw new Error('Invalid Google token signature');
+  let header;
+  let claims;
+  try {
+    header = decodeJwtPart(encodedHeader);
+    claims = decodeJwtPart(encodedClaims);
+  } catch {
+    throw new InvalidGoogleTokenError('Invalid Google sign-in token');
+  }
+  if (header.alg !== 'RS256' || !header.kid) {
+    throw new InvalidGoogleTokenError('Invalid Google token signature');
+  }
   const keys = await loadGoogleKeys();
   let jwk = keys.find(key => key.kid === header.kid);
   if (!jwk) jwk = (await loadGoogleKeys(true)).find(key => key.kid === header.kid);
-  if (!jwk) throw new Error('Unknown Google token signing key');
+  if (!jwk) throw new InvalidGoogleTokenError('Unknown Google token signing key');
   const publicKey = await crypto.subtle.importKey(
     'jwk',
     jwk,
@@ -94,7 +109,7 @@ async function verifyGoogleIdToken(token, clientId) {
   if (!validSignature || !validIssuer || !validAudience || !claims.sub ||
       !claims.email || claims.email_verified !== true || claims.exp <= now ||
       claims.iat > now + 60 || !Number.isFinite(claims.exp) || !Number.isFinite(claims.iat)) {
-    throw new Error('Google sign-in token is invalid or expired');
+    throw new InvalidGoogleTokenError('Google sign-in token is invalid or expired');
   }
   return { id: claims.sub, email: claims.email, name: claims.name || '' };
 }
@@ -327,8 +342,9 @@ async function creditTopup(env, orderId, payment) {
     SELECT user_id, amount, status FROM payment_orders WHERE order_id = ?
   `).bind(orderId).first();
   if (!order || order.amount !== TOPUP_AMOUNT || payment.order_id !== orderId ||
-      payment.amount !== TOPUP_AMOUNT || payment.currency !== 'INR' || payment.status !== 'captured') {
-    throw new Error('Payment does not match the order');
+      payment.amount !== TOPUP_AMOUNT || payment.currency !== 'INR' ||
+      payment.status !== 'captured' || !payment.id) {
+    throw new PaymentMismatchError('Payment does not match the order');
   }
   const results = await env.DB.batch([
     env.DB.prepare(`
@@ -353,8 +369,8 @@ async function creditSubscription(env, subscriptionId, payment) {
   `).bind(subscriptionId).first();
   if (!subscription || payment.subscription_id !== subscriptionId ||
       payment.currency !== 'INR' || payment.status !== 'captured' ||
-      payment.amount !== SUBSCRIPTION_AMOUNT) {
-    throw new Error('Subscription payment does not match');
+      payment.amount !== SUBSCRIPTION_AMOUNT || !payment.id) {
+    throw new PaymentMismatchError('Subscription payment does not match');
   }
   const results = await env.DB.batch([
     env.DB.prepare(`
@@ -365,8 +381,8 @@ async function creditSubscription(env, subscriptionId, payment) {
       UPDATE users SET subscription_requests = ?,
         subscription_expires_at = datetime('now', '+30 days'),
         subscription_status = 'active'
-      WHERE user_id = ? AND changes() = 1
-    `).bind(SUBSCRIPTION_REQUESTS, subscription.user_id),
+      WHERE user_id = ? AND current_subscription_id = ? AND changes() = 1
+    `).bind(SUBSCRIPTION_REQUESTS, subscription.user_id, subscriptionId),
     env.DB.prepare(`
       UPDATE subscriptions SET status = 'active' WHERE subscription_id = ?
         AND changes() = 1
@@ -388,6 +404,17 @@ async function verifyTopup(request, env, user) {
   const expected = await hmacHex(env.RAZORPAY_KEY_SECRET, `${orderId}|${paymentId}`);
   if (!constantTimeEqual(expected, signature)) return json({ error: 'Invalid payment signature' }, 400);
   const payment = await paymentDetails(env, paymentId);
+  if (payment.order_id !== orderId || payment.amount !== TOPUP_AMOUNT || payment.currency !== 'INR') {
+    return json({ error: 'Payment does not match the order' }, 400);
+  }
+  if (payment.status !== 'captured') {
+    const pending = ['created', 'authorized'].includes(payment.status);
+    return json({
+      account: await accountSummary(env, user.id),
+      paymentPending: pending,
+      message: pending ? 'Payment is still processing.' : 'Payment was not captured.'
+    }, pending ? 202 : 400);
+  }
   await creditTopup(env, orderId, payment);
   return json({ account: await accountSummary(env, user.id) });
 }
@@ -406,8 +433,20 @@ async function verifySubscription(request, env, user) {
   const expected = await hmacHex(env.RAZORPAY_KEY_SECRET, `${paymentId}|${subscriptionId}`);
   if (!constantTimeEqual(expected, signature)) return json({ error: 'Invalid payment signature' }, 400);
   const payment = await paymentDetails(env, paymentId);
+  if (payment.subscription_id !== subscriptionId ||
+      payment.currency !== 'INR' || payment.amount !== SUBSCRIPTION_AMOUNT) {
+    return json({ error: 'Payment does not match the subscription' }, 400);
+  }
+  if (payment.status !== 'captured') {
+    const pending = ['created', 'authorized'].includes(payment.status);
+    return json({
+      account: await accountSummary(env, user.id),
+      paymentPending: pending,
+      message: pending ? 'Payment is still processing.' : 'Payment was not captured.'
+    }, pending ? 202 : 400);
+  }
   await creditSubscription(env, subscriptionId, payment);
-  return json({ account: await accountSummary(env, user.id), paymentPending: payment.status !== 'captured' });
+  return json({ account: await accountSummary(env, user.id), paymentPending: false });
 }
 
 async function cancelSubscription(env, user) {
@@ -424,7 +463,8 @@ async function cancelSubscription(env, user) {
   `).bind(current.current_subscription_id, user.id).run();
   await env.DB.prepare(`
     UPDATE users SET subscription_status = 'cancelled' WHERE user_id = ?
-  `).bind(user.id).run();
+      AND current_subscription_id = ?
+  `).bind(user.id, current.current_subscription_id).run();
   return json({ account: await accountSummary(env, user.id) });
 }
 
@@ -440,44 +480,62 @@ async function handleWebhook(request, env) {
     'SELECT event_id FROM webhook_events WHERE event_id = ?'
   ).bind(eventId).first();
   if (alreadyProcessed) return json({ received: true, duplicate: true });
-  const event = JSON.parse(rawBody);
-  const subscription = event.payload?.subscription?.entity;
-  if (event.event === 'payment.captured') {
-    const payment = event.payload?.payment?.entity;
-    if (payment?.order_id) {
-      const order = await env.DB.prepare(
-        'SELECT order_id FROM payment_orders WHERE order_id = ?'
-      ).bind(payment.order_id).first();
-      if (order) await creditTopup(env, payment.order_id, payment);
-    } else if (payment?.subscription_id) {
-      const userSubscription = await env.DB.prepare(
-        'SELECT subscription_id FROM subscriptions WHERE subscription_id = ?'
-      ).bind(payment.subscription_id).first();
-      if (userSubscription) await creditSubscription(env, payment.subscription_id, payment);
+  let event;
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return json({ error: 'Invalid webhook payload' }, 400);
+  }
+  let ignored = false;
+  try {
+    const subscription = event.payload?.subscription?.entity;
+    if (event.event === 'payment.captured') {
+      const payment = event.payload?.payment?.entity;
+      if (payment?.order_id) {
+        const order = await env.DB.prepare(
+          'SELECT order_id FROM payment_orders WHERE order_id = ?'
+        ).bind(payment.order_id).first();
+        if (order) {
+          await creditTopup(env, payment.order_id, payment);
+        } else if (payment.subscription_id) {
+          const userSubscription = await env.DB.prepare(
+            'SELECT subscription_id FROM subscriptions WHERE subscription_id = ?'
+          ).bind(payment.subscription_id).first();
+          if (userSubscription) await creditSubscription(env, payment.subscription_id, payment);
+        }
+      } else if (payment?.subscription_id) {
+        const userSubscription = await env.DB.prepare(
+          'SELECT subscription_id FROM subscriptions WHERE subscription_id = ?'
+        ).bind(payment.subscription_id).first();
+        if (userSubscription) await creditSubscription(env, payment.subscription_id, payment);
+      }
+    } else if (event.event === 'subscription.charged') {
+      const payment = event.payload?.payment?.entity;
+      if (payment?.id && subscription?.id) {
+        await creditSubscription(env, subscription.id, {
+          ...payment,
+          subscription_id: payment.subscription_id || subscription.id
+        });
+      }
+    } else if (['subscription.cancelled', 'subscription.halted', 'subscription.completed'].includes(event.event) && subscription?.id) {
+      const status = event.event === 'subscription.cancelled'
+        ? 'cancelled'
+        : event.event === 'subscription.halted' ? 'halted' : 'completed';
+      await env.DB.batch([
+        env.DB.prepare('UPDATE subscriptions SET status = ? WHERE subscription_id = ?').bind(status, subscription.id),
+        env.DB.prepare(`
+          UPDATE users SET subscription_status = ?
+          WHERE user_id = (SELECT user_id FROM subscriptions WHERE subscription_id = ?)
+            AND current_subscription_id = ?
+        `).bind(status, subscription.id, subscription.id)
+      ]);
     }
-  } else if (event.event === 'subscription.charged') {
-    const payment = event.payload?.payment?.entity;
-    if (payment?.id && subscription?.id) {
-      await creditSubscription(env, subscription.id, {
-        ...payment,
-        subscription_id: payment.subscription_id || subscription.id
-      });
-    }
-  } else if (['subscription.cancelled', 'subscription.halted', 'subscription.completed'].includes(event.event) && subscription?.id) {
-    const status = event.event === 'subscription.cancelled'
-      ? 'cancelled'
-      : event.event === 'subscription.halted' ? 'halted' : 'completed';
-    await env.DB.batch([
-      env.DB.prepare('UPDATE subscriptions SET status = ? WHERE subscription_id = ?').bind(status, subscription.id),
-      env.DB.prepare(`
-        UPDATE users SET subscription_status = ?
-        WHERE user_id = (SELECT user_id FROM subscriptions WHERE subscription_id = ?)
-          AND current_subscription_id = ?
-      `).bind(status, subscription.id, subscription.id)
-    ]);
+  } catch (error) {
+    if (!(error instanceof PaymentMismatchError)) throw error;
+    ignored = true;
   }
   await env.DB.prepare('INSERT OR IGNORE INTO webhook_events (event_id) VALUES (?)').bind(eventId).run();
-  return json({ received: true });
+  return json({ received: true, ...(ignored ? { ignored: true } : {}) });
 }
 
 async function handleGemini(request, env, user, url) {
@@ -500,8 +558,9 @@ async function handleGemini(request, env, user, url) {
       message: 'Your free requests and paid request balance are used up. Choose a plan to continue.'
     }, 429);
   }
+  let upstream;
   try {
-    const upstream = await fetch(`${GEMINI_BASE_URL}${url.pathname}`, {
+    upstream = await fetch(`${GEMINI_BASE_URL}${url.pathname}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -509,24 +568,47 @@ async function handleGemini(request, env, user, url) {
       },
       body
     });
-    if (!upstream.ok) {
-      await refundUsage(env, reservation);
-      return new Response(await upstream.arrayBuffer(), {
-        status: upstream.status,
-        headers: { 'Content-Type': upstream.headers.get('Content-Type') || 'application/json' }
-      });
-    }
-    return new Response(await upstream.arrayBuffer(), {
-      status: upstream.status,
-      headers: {
-        'Content-Type': upstream.headers.get('Content-Type') || 'application/json',
-        'X-Quota-Status': JSON.stringify(await accountSummary(env, user.id))
-      }
-    });
   } catch {
     await refundUsage(env, reservation);
     return json({ error: 'AI service temporarily unavailable' }, 502);
   }
+  let responseBody;
+  try {
+    responseBody = await upstream.arrayBuffer();
+  } catch {
+    await refundUsage(env, reservation);
+    return json({ error: 'AI service temporarily unavailable' }, 502);
+  }
+  if (!upstream.ok) {
+    await refundUsage(env, reservation);
+    return new Response(responseBody, {
+      status: upstream.status,
+      headers: {
+        'Cache-Control': 'no-store',
+        'Content-Type': upstream.headers.get('Content-Type') || 'application/json'
+      }
+    });
+  }
+  const responseHeaders = {
+    'Cache-Control': 'no-store',
+    'Content-Type': upstream.headers.get('Content-Type') || 'application/json'
+  };
+  try {
+    const account = await accountSummary(env, user.id);
+    responseHeaders['X-Quota-Status'] = JSON.stringify({
+      freeLimit: account.freeLimit,
+      freeUsed: account.freeUsed,
+      freeRemaining: account.freeRemaining,
+      paidRequests: account.paidRequests,
+      subscriptionRequests: account.subscriptionRequests,
+      subscriptionExpiresAt: account.subscriptionExpiresAt,
+      subscriptionStatus: account.subscriptionStatus,
+      subscriptionId: account.subscriptionId
+    });
+  } catch (error) {
+    console.error('Unable to refresh quota display', error);
+  }
+  return new Response(responseBody, { status: upstream.status, headers: responseHeaders });
 }
 
 async function route(request, env) {
@@ -548,7 +630,11 @@ async function route(request, env) {
   try {
     user = await authenticate(request, env);
   } catch (error) {
-    return json({ error: error.message || 'Sign-in verification failed' }, 401);
+    if (error instanceof InvalidGoogleTokenError) {
+      return json({ error: 'Google sign-in token is invalid or expired' }, 401);
+    }
+    console.error('Authentication service unavailable', error);
+    return json({ error: 'Authentication service temporarily unavailable' }, 503);
   }
   if (!user) return json({ error: 'Sign in with Google to continue' }, 401);
 
@@ -588,7 +674,10 @@ export default {
       for (const [key, value] of Object.entries(headers)) responseHeaders.set(key, value);
       return new Response(response.body, { status: response.status, headers: responseHeaders });
     } catch (error) {
-      return json({ error: error.message || 'Request failed' }, 500, headers);
+      console.error('Worker request failed', error);
+      return json({ error: 'Request failed. Please try again.' }, 500, headers);
     }
   }
 };
+
+export { creditSubscription, creditTopup, hmacHex, refundUsage, reserveUsage };

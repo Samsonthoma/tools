@@ -1,12 +1,123 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import worker from '../src/index.mjs';
+import { creditSubscription, creditTopup, hmacHex, refundUsage, reserveUsage } from '../src/index.mjs';
 
 const env = {
   SITE_ORIGIN: 'https://tools.thesouthindianschool.in',
   GOOGLE_CLIENT_ID: 'test-client-id',
   RAZORPAY_KEY_ID: 'test-key-id'
 };
+let validGoogleToken;
+
+class MemoryD1 {
+  constructor() {
+    this.dailyCount = 0;
+    this.paidRequests = 0;
+    this.subscriptionRequests = 0;
+    this.subscriptionExpiresAt = null;
+    this.subscriptionStatus = 'inactive';
+    this.currentSubscriptionId = null;
+    this.order = null;
+    this.subscriptions = new Map();
+    this.processedPayments = new Set();
+    this.webhookEvents = new Set();
+  }
+
+  prepare(sql) {
+    return {
+      bind: (...values) => ({
+        sql,
+        values,
+        first: async () => {
+          if (sql.includes('UPDATE daily_usage SET request_count = request_count + 1')) {
+            const limit = values[2];
+            if (this.dailyCount >= limit) return null;
+            this.dailyCount++;
+            return { request_count: this.dailyCount };
+          }
+          if (sql.includes('UPDATE users SET subscription_requests = subscription_requests - 1')) {
+            if (this.subscriptionRequests < 1 || !this.subscriptionExpiresAt ||
+                Date.parse(this.subscriptionExpiresAt) <= Date.now()) return null;
+            this.subscriptionRequests--;
+            return { subscription_requests: this.subscriptionRequests };
+          }
+          if (sql.includes('UPDATE users SET paid_requests = paid_requests - 1')) {
+            if (this.paidRequests < 1) return null;
+            this.paidRequests--;
+            return { paid_requests: this.paidRequests };
+          }
+          if (sql.includes('FROM payment_orders')) return this.order;
+          if (sql.includes('FROM subscriptions')) return this.subscriptions.get(values[0]) || null;
+          if (sql.includes('FROM webhook_events')) {
+            return this.webhookEvents.has(values[0]) ? { event_id: values[0] } : null;
+          }
+          if (sql.includes('SELECT request_count FROM daily_usage')) {
+            return { request_count: this.dailyCount };
+          }
+          if (sql.includes('SELECT email, name, paid_requests')) {
+            return {
+              email: 'student@example.com',
+              name: 'Student',
+              paid_requests: this.paidRequests,
+              subscription_requests: this.subscriptionRequests,
+              subscription_expires_at: this.subscriptionExpiresAt,
+              subscription_status: this.subscriptionStatus,
+              current_subscription_id: this.currentSubscriptionId
+            };
+          }
+          return null;
+        },
+        run: async () => {
+          if (sql.includes('UPDATE daily_usage SET request_count = MAX')) this.dailyCount = Math.max(0, this.dailyCount - 1);
+          if (sql.includes('UPDATE users SET subscription_requests = subscription_requests + 1')) this.subscriptionRequests++;
+          if (sql.includes('UPDATE users SET paid_requests = paid_requests + 1')) this.paidRequests++;
+          if (sql.includes('INSERT OR IGNORE INTO webhook_events')) this.webhookEvents.add(values[0]);
+          return { meta: { changes: 1 } };
+        }
+      })
+    };
+  }
+
+  async batch(statements) {
+    let changes = 0;
+    const results = [];
+    for (const statement of statements) {
+      const { sql, values } = statement;
+      if (sql.includes('INSERT OR IGNORE INTO processed_payments')) {
+        const paymentId = values[0];
+        changes = this.processedPayments.has(paymentId) ? 0 : 1;
+        this.processedPayments.add(paymentId);
+      } else if (sql.includes('UPDATE payment_orders SET status')) {
+        if (changes === 1 && this.order?.status === 'created' &&
+            this.order.user_id === values[2]) {
+          this.order.status = 'paid';
+          this.order.payment_id = values[0];
+          changes = 1;
+        } else {
+          changes = 0;
+        }
+      } else if (sql.includes('UPDATE users SET paid_requests = paid_requests + ?')) {
+        if (changes === 1) this.paidRequests += values[0];
+        else changes = 0;
+      } else if (sql.includes('UPDATE users SET subscription_requests = ?')) {
+        if (changes === 1 && this.currentSubscriptionId === values[2]) {
+          this.subscriptionRequests = values[0];
+          this.subscriptionExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+          this.subscriptionStatus = 'active';
+          changes = 1;
+        } else {
+          changes = 0;
+        }
+      } else if (sql.includes('UPDATE subscriptions SET status')) {
+        if (changes !== 1) changes = 0;
+      }
+      results.push({ meta: { changes } });
+    }
+    return results;
+  }
+}
 
 test('serves public checkout configuration to the site origin', async () => {
   const response = await worker.fetch(new Request('https://worker.example/api/config', {
@@ -79,7 +190,7 @@ test('accepts a correctly signed Google ID token for the account endpoint', asyn
     keyPair.privateKey,
     new TextEncoder().encode(unsignedToken)
   );
-  const token = `${unsignedToken}.${Buffer.from(signature).toString('base64url')}`;
+  validGoogleToken = `${unsignedToken}.${Buffer.from(signature).toString('base64url')}`;
   globalThis.fetch = async () => new Response(JSON.stringify({ keys: [publicJwk] }));
   const database = {
     prepare(sql) {
@@ -107,7 +218,7 @@ test('accepts a correctly signed Google ID token for the account endpoint', asyn
     const response = await worker.fetch(new Request('https://worker.example/api/me', {
       headers: {
         Origin: env.SITE_ORIGIN,
-        Authorization: 'Bearer ' + token
+        Authorization: 'Bearer ' + validGoogleToken
       }
     }), { ...env, DB: database });
     const result = await response.json();
@@ -115,6 +226,154 @@ test('accepts a correctly signed Google ID token for the account endpoint', asyn
     assert.equal(response.status, 200);
     assert.equal(result.account.email, 'student@example.com');
     assert.equal(result.account.freeRemaining, 7);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('reserves at most seven free requests concurrently and refunds failed requests', async () => {
+  const database = new MemoryD1();
+  const quotaEnv = { DB: database, FREE_DAILY_LIMIT: '7' };
+  const reservations = await Promise.all(
+    Array.from({ length: 8 }, () => reserveUsage(quotaEnv, 'user-1'))
+  );
+
+  assert.equal(reservations.filter(Boolean).length, 7);
+  assert.equal(database.dailyCount, 7);
+  await refundUsage(quotaEnv, reservations.find(Boolean));
+  assert.equal(database.dailyCount, 6);
+  assert.ok(await reserveUsage(quotaEnv, 'user-1'));
+  assert.equal(database.dailyCount, 7);
+});
+
+test('uses paid requests after the free quota and refunds failed paid calls', async () => {
+  const database = new MemoryD1();
+  database.dailyCount = 7;
+  database.paidRequests = 2;
+  const quotaEnv = { DB: database, FREE_DAILY_LIMIT: '7' };
+
+  const reservation = await reserveUsage(quotaEnv, 'user-1');
+  assert.equal(reservation.type, 'paid');
+  assert.equal(database.paidRequests, 1);
+  await refundUsage(quotaEnv, reservation);
+  assert.equal(database.paidRequests, 2);
+});
+
+test('credits Razorpay top-ups once even when verification and webhook race', async () => {
+  const database = new MemoryD1();
+  database.order = { user_id: 'user-1', amount: 4900, status: 'created' };
+  const payment = {
+    id: 'pay-1',
+    order_id: 'order-1',
+    amount: 4900,
+    currency: 'INR',
+    status: 'captured'
+  };
+
+  assert.equal(await creditTopup({ DB: database }, 'order-1', payment), true);
+  assert.equal(await creditTopup({ DB: database }, 'order-1', payment), false);
+  assert.equal(database.paidRequests, 50);
+});
+
+test('only credits the currently selected subscription', async () => {
+  const database = new MemoryD1();
+  database.currentSubscriptionId = 'sub-current';
+  database.subscriptions.set('sub-current', { user_id: 'user-1' });
+  database.subscriptions.set('sub-old', { user_id: 'user-1' });
+  const payment = {
+    id: 'pay-sub',
+    subscription_id: 'sub-current',
+    amount: 19900,
+    currency: 'INR',
+    status: 'captured'
+  };
+
+  assert.equal(await creditSubscription({ DB: database }, 'sub-current', payment), true);
+  assert.equal(database.subscriptionRequests, 500);
+  assert.equal(database.subscriptionStatus, 'active');
+  assert.equal(await creditSubscription({ DB: database }, 'sub-old', {
+    ...payment,
+    id: 'pay-old',
+    subscription_id: 'sub-old'
+  }), false);
+  assert.equal(database.subscriptionStatus, 'active');
+});
+
+test('acknowledges signed Razorpay webhooks with non-matching payment details', async () => {
+  const database = new MemoryD1();
+  database.order = { user_id: 'user-1', amount: 4900, status: 'created' };
+  const payload = JSON.stringify({
+    event: 'payment.captured',
+    payload: {
+      payment: {
+        entity: {
+          id: 'pay-wrong',
+          order_id: 'order-1',
+          amount: 100,
+          currency: 'INR',
+          status: 'captured'
+        }
+      }
+    }
+  });
+  const secret = 'test-webhook-secret';
+  const signature = createHmac('sha256', secret).update(payload).digest('hex');
+  const response = await worker.fetch(new Request('https://worker.example/api/payments/webhook', {
+    method: 'POST',
+    headers: {
+      'X-Razorpay-Signature': signature,
+      'X-Razorpay-Event-Id': 'event-mismatch'
+    },
+    body: payload
+  }), { ...env, DB: database, RAZORPAY_WEBHOOK_SECRET: secret });
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).ignored, true);
+  assert.equal(database.paidRequests, 0);
+  assert.ok(database.webhookEvents.has('event-mismatch'));
+});
+
+test('uses Razorpay HMAC-SHA256 signatures', async () => {
+  const signature = await hmacHex('secret', 'order|payment');
+  assert.equal(signature, createHmac('sha256', 'secret').update('order|payment').digest('hex'));
+});
+
+test('proxies Gemini with the Worker secret and refunds failed upstream requests', async () => {
+  const originalFetch = globalThis.fetch;
+  const database = new MemoryD1();
+  const sentHeaders = [];
+  let failUpstream = false;
+  globalThis.fetch = async (url, options) => {
+    assert.match(String(url), /^https:\/\/generativelanguage\.googleapis\.com\//);
+    sentHeaders.push(new Headers(options.headers));
+    return failUpstream
+      ? new Response('provider error', { status: 503 })
+      : Response.json({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] });
+  };
+  try {
+    const makeRequest = () => new Request(
+      `https://worker.example/v1beta/models/gemini-3-flash-preview:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          Origin: env.SITE_ORIGIN,
+          Authorization: 'Bearer ' + validGoogleToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ contents: [{ parts: [{ text: 'test' }] }] })
+      }
+    );
+    const workerEnv = { ...env, DB: database, GEMINI_API_KEY: 'server-only-test-key' };
+    const success = await worker.fetch(makeRequest(), workerEnv);
+    assert.equal(success.status, 200);
+    assert.equal((await success.json()).candidates[0].content.parts[0].text, 'ok');
+    assert.equal(sentHeaders[0].get('x-goog-api-key'), 'server-only-test-key');
+    assert.equal(JSON.parse(success.headers.get('X-Quota-Status')).freeRemaining, 6);
+
+    failUpstream = true;
+    const failed = await worker.fetch(makeRequest(), workerEnv);
+    assert.equal(failed.status, 503);
+    assert.equal(database.dailyCount, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }

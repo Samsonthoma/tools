@@ -4,7 +4,7 @@ This Worker proxies Gemini requests, validates Google Identity Services ID token
 
 ## Deploy
 
-The Worker is named `tools` to match the frontend URL `https://tools.samsonthomasminithomas.workers.dev`.
+The Worker is named `tools`, matching the API endpoint `https://tools.samsonthomasminithomas.workers.dev` used by the frontend. The allowed browser site origin is `https://tools.thesouthindianschool.in`.
 
 1. In Cloudflare, create the D1 database named `tools-ai-db` (or use an existing database), then copy its database ID into `wrangler.toml`.
 2. From this directory, apply the schema and deploy:
@@ -18,12 +18,11 @@ The Worker is named `tools` to match the frontend URL `https://tools.samsonthoma
 
    ```sh
    npx wrangler secret put GEMINI_API_KEY
-   npx wrangler secret put RAZORPAY_KEY_ID
    npx wrangler secret put RAZORPAY_KEY_SECRET
    npx wrangler secret put RAZORPAY_WEBHOOK_SECRET
    ```
 
-   The Google client ID, allowed site origin, and free daily request limit are non-secret Worker variables in `wrangler.toml`. The Google OAuth client must allow `https://tools.thesouthindianschool.in`.
+   Set `RAZORPAY_KEY_ID` as a Worker variable in Cloudflare (it is a public checkout identifier; keeping it as a secret also works). The Google client ID, allowed site origin, and free daily request limit are non-secret Worker variables in `wrangler.toml`. The Google OAuth client must allow `https://tools.thesouthindianschool.in`.
 
 4. In Razorpay, configure a webhook pointing to:
 
@@ -34,6 +33,8 @@ The Worker is named `tools` to match the frontend URL `https://tools.samsonthoma
    Use the same webhook secret as `RAZORPAY_WEBHOOK_SECRET` and subscribe to `payment.captured`, `subscription.charged`, `subscription.cancelled`, `subscription.halted`, and `subscription.completed`.
 
 Wrangler deployment is separate from the static-site deployment. Creating the D1 database and setting the secrets/variables in Cloudflare is required before the Worker can serve authenticated requests. The Worker creates the ₹199 monthly Razorpay plan on first use; each successfully captured monthly charge grants 500 requests for 30 days. Subscription checkout is recurring and users can cancel renewal from their account.
+
+CORS only controls which browser origins can read responses; it is not authentication or an access-control boundary. The Worker independently verifies each Google ID token before accessing account, quota, payment, or Gemini endpoints.
 
 ## Quota behavior
 

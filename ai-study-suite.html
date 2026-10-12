@@ -814,7 +814,7 @@
 
   <!-- JavaScript Application Logic -->
   <script>
-    const GEMINI_WORKER_URL = 'https://tools.samsonthomasminithomas.workers.dev';
+    const WORKER_API_URL = 'https://tools.samsonthomasminithomas.workers.dev';
     let googleIdToken = '';
     let googleClientId = '';
     let accountInfo = null;
@@ -858,7 +858,7 @@
 
     async function loadWorkerConfig() {
       try {
-        const response = await fetch(`${GEMINI_WORKER_URL}/api/config`);
+        const response = await fetch(`${WORKER_API_URL}/api/config`);
         if (!response.ok) throw new Error('Unable to load sign-in configuration');
         const config = await response.json();
         googleClientId = config.googleClientId;
@@ -894,7 +894,7 @@
         openAccountModal('Sign in with Google before using AI or making a purchase.');
         throw new Error('Sign in with Google to continue.');
       }
-      const response = await fetch(`${GEMINI_WORKER_URL}${path}`, {
+      const response = await fetch(`${WORKER_API_URL}${path}`, {
         ...options,
         headers: {
           ...(options.body ? { 'Content-Type': 'application/json' } : {}),
@@ -968,7 +968,9 @@
             });
             accountInfo = result.account;
             updateAccountButton();
-            showAccountMessage('Payment verified. Your account quota has been updated.');
+            showAccountMessage(result.paymentPending
+              ? 'Your payment is processing. Requests will be added after Razorpay confirms it.'
+              : 'Payment verified. Your account quota has been updated.');
           } catch (error) {
             showAccountMessage(`Payment received but could not be verified yet: ${error.message}`);
           }
@@ -1037,6 +1039,46 @@
       }
     }
 
+    function sanitizeAIHtml(markup) {
+      const allowedTags = new Set([
+        'A', 'BLOCKQUOTE', 'BR', 'CODE', 'EM', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+        'HR', 'I', 'LI', 'OL', 'P', 'PRE', 'S', 'STRONG', 'SUB', 'SUP', 'TABLE',
+        'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'U', 'UL'
+      ]);
+      const blockedTags = new Set([
+        'AUDIO', 'EMBED', 'IFRAME', 'MATH', 'OBJECT', 'SCRIPT', 'STYLE', 'SVG',
+        'TEMPLATE', 'VIDEO'
+      ]);
+      const source = new DOMParser().parseFromString(String(markup), 'text/html');
+
+      function cleanNode(node) {
+        if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.nodeValue || '');
+        if (node.nodeType !== Node.ELEMENT_NODE) return document.createDocumentFragment();
+        if (blockedTags.has(node.tagName)) return document.createDocumentFragment();
+
+        const clean = allowedTags.has(node.tagName)
+          ? document.createElement(node.tagName.toLowerCase())
+          : document.createDocumentFragment();
+        if (node.tagName === 'A' && clean.nodeType === Node.ELEMENT_NODE) {
+          const href = node.getAttribute('href');
+          try {
+            const safeUrl = new URL(href, window.location.origin);
+            if (['http:', 'https:'].includes(safeUrl.protocol)) {
+              clean.setAttribute('href', safeUrl.href);
+              clean.setAttribute('target', '_blank');
+              clean.setAttribute('rel', 'noopener noreferrer');
+            }
+          } catch {}
+        }
+        node.childNodes.forEach(child => clean.append(cleanNode(child)));
+        return clean;
+      }
+
+      const fragment = document.createDocumentFragment();
+      source.body.childNodes.forEach(child => fragment.append(cleanNode(child)));
+      return fragment;
+    }
+
     async function callGemini(url, payload) {
       if (!googleIdToken) {
         openAccountModal('Sign in with Google before using AI.');
@@ -1064,7 +1106,7 @@
       }
       const quota = response.headers.get('X-Quota-Status');
       if (quota) {
-        accountInfo = JSON.parse(quota);
+        accountInfo = { ...accountInfo, ...JSON.parse(quota) };
         updateAccountButton();
       }
       return await response.json();
@@ -1117,7 +1159,7 @@
       btn.disabled = true;
 
       const systemPrompt = `You are an expert educational note-formatting assistant. Convert the provided user text into the requested format cleanly using clean HTML formatting (with bold, lists, and clear headers). Format requested: ${currentSelectedFormat}.`;
-      const url = `${GEMINI_WORKER_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
 
       try {
         const data = await callGemini(url, {
@@ -1128,7 +1170,7 @@
         const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to transform notes.';
         
         document.getElementById('transformerOutputCard').classList.remove('hidden');
-        document.getElementById('transformerFormattedResult').innerHTML = textResult;
+        document.getElementById('transformerFormattedResult').replaceChildren(sanitizeAIHtml(textResult));
       } catch (err) {
         alert('Error transforming notes: ' + err.message);
       } finally {
@@ -1149,7 +1191,7 @@
     }
 
     async function playSectionAudio(sectionId, textPrompt) {
-      const url = `${GEMINI_WORKER_URL}/v1beta/models/gemini-2.5-flash-preview-tts:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-2.5-flash-preview-tts:generateContent`;
       
       const payload = {
         contents: [{ parts: [{ text: `Say in a clear, engaging tutor tone: ${textPrompt}` }] }],
@@ -1232,7 +1274,7 @@
       btn.disabled = true;
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating Tree...`;
 
-      const url = `${GEMINI_WORKER_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: `Create a structured mind map hierarchy for the topic: "${topic}". Return JSON.` }] }],
         generationConfig: {
@@ -1345,7 +1387,7 @@
 
     async function generateAIFlashcards() {
       const topic = document.getElementById('flashcardTopicInput').value.trim() || 'Note-Taking Techniques';
-      const url = `${GEMINI_WORKER_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
 
       const payload = {
         contents: [{ parts: [{ text: `Generate 5 active recall study flashcards on "${topic}".` }] }],
@@ -1424,7 +1466,7 @@
       btn.disabled = true;
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Rendering Image...`;
 
-      const url = `${GEMINI_WORKER_URL}/v1beta/models/gemini-3.1-flash-image:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3.1-flash-image:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
@@ -1464,15 +1506,17 @@
       if (!msg) return;
 
       const chatHistory = document.getElementById('chatHistory');
-      chatHistory.innerHTML += `
-        <div class="flex justify-end">
-          <div class="p-3 rounded-2xl bg-indigo-600 text-white max-w-[85%]">${msg}</div>
-        </div>
-      `;
+      const userRow = document.createElement('div');
+      userRow.className = 'flex justify-end';
+      const userBubble = document.createElement('div');
+      userBubble.className = 'p-3 rounded-2xl bg-indigo-600 text-white max-w-[85%]';
+      userBubble.textContent = msg;
+      userRow.append(userBubble);
+      chatHistory.append(userRow);
       inputEl.value = '';
       chatHistory.scrollTop = chatHistory.scrollHeight;
 
-      const url = `${GEMINI_WORKER_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: msg }] }],
         systemInstruction: { parts: [{ text: 'You are StudyCraft AI, an encouraging and clear educational coach for middle and high school students.' }] }
@@ -1482,12 +1526,16 @@
         const data = await callGemini(url, payload);
         const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'I am here to help!';
 
-        chatHistory.innerHTML += `
-          <div class="flex items-start space-x-3">
-            <div class="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shrink-0">AI</div>
-            <div class="p-3.5 rounded-2xl bg-indigo-50 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 max-w-[85%]">${reply}</div>
-          </div>
-        `;
+        const assistantRow = document.createElement('div');
+        assistantRow.className = 'flex items-start space-x-3';
+        const assistantIcon = document.createElement('div');
+        assistantIcon.className = 'w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shrink-0';
+        assistantIcon.textContent = 'AI';
+        const assistantBubble = document.createElement('div');
+        assistantBubble.className = 'p-3.5 rounded-2xl bg-indigo-50 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 max-w-[85%]';
+        assistantBubble.textContent = reply;
+        assistantRow.append(assistantIcon, assistantBubble);
+        chatHistory.append(assistantRow);
         chatHistory.scrollTop = chatHistory.scrollHeight;
       } catch (err) {
         console.error(err);
@@ -1512,7 +1560,7 @@
       box.classList.remove('hidden');
       box.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Gemini is evaluating your recall completeness...`;
 
-      const url = `${GEMINI_WORKER_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: `Topic: "${topic}". User Recall Attempt: "${recallText}". Evaluate recall completeness, list key points missed, and give a score out of 100.` }] }]
       };
@@ -1520,9 +1568,12 @@
       try {
         const data = await callGemini(url, payload);
         const evaluation = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Evaluation complete!';
-        box.innerHTML = `<strong class="text-purple-600 dark:text-purple-400 block mb-1">AI Recall Assessment:</strong> ${evaluation}`;
+        const heading = document.createElement('strong');
+        heading.className = 'text-purple-600 dark:text-purple-400 block mb-1';
+        heading.textContent = 'AI Recall Assessment:';
+        box.replaceChildren(heading, sanitizeAIHtml(evaluation));
       } catch (err) {
-        box.innerHTML = 'Error evaluating recall.';
+        box.textContent = 'Error evaluating recall.';
       }
     }
 
