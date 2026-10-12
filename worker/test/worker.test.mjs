@@ -39,7 +39,7 @@ class MemoryD1 {
           }
           if (sql.includes('UPDATE users SET subscription_requests = subscription_requests - 1')) {
             if (this.subscriptionRequests < 1 || !this.subscriptionExpiresAt ||
-                Date.parse(this.subscriptionExpiresAt) <= Date.now()) return null;
+                Date.parse(`${this.subscriptionExpiresAt.replace(' ', 'T')}Z`) <= Date.now()) return null;
             this.subscriptionRequests--;
             return { subscription_requests: this.subscriptionRequests };
           }
@@ -104,7 +104,8 @@ class MemoryD1 {
       } else if (sql.includes('UPDATE users SET subscription_requests = ?')) {
         if (changes === 1 && this.currentSubscriptionId === values[2]) {
           this.subscriptionRequests = values[0];
-          this.subscriptionExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+          this.subscriptionExpiresAt = new Date(Date.now() + 30 * 86400000)
+            .toISOString().slice(0, 19).replace('T', ' ');
           this.subscriptionStatus = 'active';
           changes = 1;
         } else {
@@ -259,6 +260,23 @@ test('uses paid requests after the free quota and refunds failed paid calls', as
   assert.equal(database.paidRequests, 2);
 });
 
+test('uses subscription requests before top-ups and refunds failed subscription calls', async () => {
+  const database = new MemoryD1();
+  database.dailyCount = 7;
+  database.subscriptionRequests = 1;
+  database.subscriptionExpiresAt = new Date(Date.now() + 30 * 86400000)
+    .toISOString().slice(0, 19).replace('T', ' ');
+  database.paidRequests = 10;
+  const quotaEnv = { DB: database, FREE_DAILY_LIMIT: '7' };
+
+  const reservation = await reserveUsage(quotaEnv, 'user-1');
+  assert.equal(reservation.type, 'subscription');
+  assert.equal(database.subscriptionRequests, 0);
+  assert.equal(database.paidRequests, 10);
+  await refundUsage(quotaEnv, reservation);
+  assert.equal(database.subscriptionRequests, 1);
+});
+
 test('credits Razorpay top-ups once even when verification and webhook race', async () => {
   const database = new MemoryD1();
   database.order = { user_id: 'user-1', amount: 4900, status: 'created' };
@@ -338,6 +356,81 @@ test('uses Razorpay HMAC-SHA256 signatures', async () => {
   assert.equal(signature, createHmac('sha256', 'secret').update('order|payment').digest('hex'));
 });
 
+test('reports authorized Razorpay payments as pending without crediting them', async () => {
+  const originalFetch = globalThis.fetch;
+  const database = new MemoryD1();
+  database.order = {
+    order_id: 'order-pending',
+    user_id: 'google-user-123',
+    amount: 4900,
+    status: 'created'
+  };
+  database.subscriptions.set('sub-pending', {
+    subscription_id: 'sub-pending',
+    user_id: 'google-user-123'
+  });
+  database.currentSubscriptionId = 'sub-pending';
+  globalThis.fetch = async () => Response.json({
+    id: 'payment-pending',
+    order_id: 'order-pending',
+    subscription_id: 'sub-pending',
+    amount: 4900,
+    currency: 'INR',
+    status: 'authorized'
+  });
+  const workerEnv = {
+    ...env,
+    DB: database,
+    RAZORPAY_KEY_SECRET: 'test-key-secret'
+  };
+  try {
+    const topupSignature = await hmacHex('test-key-secret', 'order-pending|payment-pending');
+    const topup = await worker.fetch(new Request('https://worker.example/api/payments/verify-topup', {
+      method: 'POST',
+      headers: {
+        Origin: env.SITE_ORIGIN,
+        Authorization: 'Bearer ' + validGoogleToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        orderId: 'order-pending',
+        paymentId: 'payment-pending',
+        signature: topupSignature
+      })
+    }), workerEnv);
+    assert.equal(topup.status, 202);
+    assert.equal((await topup.json()).paymentPending, true);
+    assert.equal(database.paidRequests, 0);
+
+    globalThis.fetch = async () => Response.json({
+      id: 'payment-pending',
+      subscription_id: 'sub-pending',
+      amount: 19900,
+      currency: 'INR',
+      status: 'authorized'
+    });
+    const subscriptionSignature = await hmacHex('test-key-secret', 'payment-pending|sub-pending');
+    const subscription = await worker.fetch(new Request('https://worker.example/api/payments/verify-subscription', {
+      method: 'POST',
+      headers: {
+        Origin: env.SITE_ORIGIN,
+        Authorization: 'Bearer ' + validGoogleToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        subscriptionId: 'sub-pending',
+        paymentId: 'payment-pending',
+        signature: subscriptionSignature
+      })
+    }), workerEnv);
+    assert.equal(subscription.status, 202);
+    assert.equal((await subscription.json()).paymentPending, true);
+    assert.equal(database.subscriptionRequests, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('proxies Gemini with the Worker secret and refunds failed upstream requests', async () => {
   const originalFetch = globalThis.fetch;
   const database = new MemoryD1();
@@ -377,4 +470,31 @@ test('proxies Gemini with the Worker secret and refunds failed upstream requests
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('rejects oversized streamed prompts before quota reservation', async () => {
+  const database = new MemoryD1();
+  const oversizedBody = new Uint8Array(1024 * 1024 + 1);
+  const request = new Request(
+    'https://worker.example/v1beta/models/gemini-3-flash-preview:generateContent',
+    {
+      method: 'POST',
+      headers: {
+        Origin: env.SITE_ORIGIN,
+        Authorization: 'Bearer ' + validGoogleToken,
+        'Content-Type': 'application/json'
+      },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(oversizedBody);
+          controller.close();
+        }
+      }),
+      duplex: 'half'
+    }
+  );
+  const response = await worker.fetch(request, { ...env, DB: database });
+
+  assert.equal(response.status, 413);
+  assert.equal(database.dailyCount, 0);
 });

@@ -197,6 +197,30 @@ async function reserveUsage(env, userId) {
   return null;
 }
 
+async function readLimitedBody(request, limit) {
+  const reader = request.body?.getReader();
+  if (!reader) return new ArrayBuffer(0);
+  const chunks = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body.buffer;
+}
+
 async function refundUsage(env, reservation) {
   if (reservation.type === 'free') {
     await env.DB.prepare(`
@@ -256,7 +280,7 @@ async function razorpayRequest(env, path, { method = 'GET', body } = {}) {
   return data;
 }
 
-async function createTopupOrder(request, env, user) {
+async function createTopupOrder(env, user) {
   const receipt = `topup_${crypto.randomUUID().replace(/-/g, '')}`;
   const order = await razorpayRequest(env, '/orders', {
     method: 'POST',
@@ -415,7 +439,14 @@ async function verifyTopup(request, env, user) {
       message: pending ? 'Payment is still processing.' : 'Payment was not captured.'
     }, pending ? 202 : 400);
   }
-  await creditTopup(env, orderId, payment);
+  try {
+    await creditTopup(env, orderId, payment);
+  } catch (error) {
+    if (error instanceof PaymentMismatchError) {
+      return json({ error: 'Payment does not match the order' }, 400);
+    }
+    throw error;
+  }
   return json({ account: await accountSummary(env, user.id) });
 }
 
@@ -445,7 +476,14 @@ async function verifySubscription(request, env, user) {
       message: pending ? 'Payment is still processing.' : 'Payment was not captured.'
     }, pending ? 202 : 400);
   }
-  await creditSubscription(env, subscriptionId, payment);
+  try {
+    await creditSubscription(env, subscriptionId, payment);
+  } catch (error) {
+    if (error instanceof PaymentMismatchError) {
+      return json({ error: 'Payment does not match the subscription' }, 400);
+    }
+    throw error;
+  }
   return json({ account: await accountSummary(env, user.id), paymentPending: false });
 }
 
@@ -543,8 +581,8 @@ async function handleGemini(request, env, user, url) {
   if (!match || !ALLOWED_MODELS.has(match[1])) return json({ error: 'Unsupported AI model' }, 404);
   const length = Number(request.headers.get('Content-Length') || 0);
   if (length > MAX_BODY_SIZE) return json({ error: 'Request too large' }, 413);
-  const body = await request.arrayBuffer();
-  if (body.byteLength > MAX_BODY_SIZE) return json({ error: 'Request too large' }, 413);
+  const body = await readLimitedBody(request, MAX_BODY_SIZE);
+  if (!body) return json({ error: 'Request too large' }, 413);
   try {
     JSON.parse(new TextDecoder().decode(body));
   } catch {
@@ -642,7 +680,7 @@ async function route(request, env) {
     return json({ account: await accountSummary(env, user.id) });
   }
   if (request.method === 'POST' && url.pathname === '/api/payments/order') {
-    return createTopupOrder(request, env, user);
+    return createTopupOrder(env, user);
   }
   if (request.method === 'POST' && url.pathname === '/api/payments/subscription') {
     return createMonthlySubscription(env, user);

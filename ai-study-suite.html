@@ -1068,7 +1068,9 @@
               clean.setAttribute('target', '_blank');
               clean.setAttribute('rel', 'noopener noreferrer');
             }
-          } catch {}
+          } catch {
+            // Invalid generated links are intentionally rendered without a clickable href.
+          }
         }
         node.childNodes.forEach(child => clean.append(cleanNode(child)));
         return clean;
