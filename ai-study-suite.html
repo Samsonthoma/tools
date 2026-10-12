@@ -15,7 +15,7 @@
   <meta name="description" content="Note-taking guide and LLM learning suite to study smarter.">
     <link rel="canonical" href="https://tools.thesouthindianschool.in/ai-study-suite.html">
     <title>StudyCraft AI - Note-Taking Guide & LLM Learning Suite</title>
-  <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleAuth()"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   
   <!-- Tailwind CSS -->
@@ -959,7 +959,9 @@
         ...options,
         handler: async response => {
           try {
-            const body = Object.fromEntries(bodyFields.map(field => [field, response[field]]));
+            const body = Object.fromEntries(
+              Object.entries(bodyFields).map(([field, razorpayField]) => [field, response[razorpayField]])
+            );
             const result = await accountRequest(verifyPath, {
               method: 'POST',
               body: JSON.stringify(body)
@@ -993,7 +995,11 @@
           description: '50 AI requests',
           prefill: { email: accountInfo.email },
           theme: { color: '#4f46e5' }
-        }, '/api/payments/verify-topup', ['razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature']);
+        }, '/api/payments/verify-topup', {
+          orderId: 'razorpay_order_id',
+          paymentId: 'razorpay_payment_id',
+          signature: 'razorpay_signature'
+        });
       } catch (error) {
         showAccountMessage(error.message);
       }
@@ -1009,7 +1015,11 @@
           description: '500 AI requests per monthly billing cycle',
           prefill: { email: accountInfo.email },
           theme: { color: '#7c3aed' }
-        }, '/api/payments/verify-subscription', ['razorpay_subscription_id', 'razorpay_payment_id', 'razorpay_signature']);
+        }, '/api/payments/verify-subscription', {
+          subscriptionId: 'razorpay_subscription_id',
+          paymentId: 'razorpay_payment_id',
+          signature: 'razorpay_signature'
+        });
       } catch (error) {
         showAccountMessage(error.message);
       }
@@ -1028,32 +1038,36 @@
     }
 
     async function callGemini(url, payload) {
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(googleIdToken ? { Authorization: 'Bearer ' + googleIdToken } : {})
-          },
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-          const result = await response.json().catch(() => ({}));
-          const message = result.message || result.error || `AI request failed (HTTP ${response.status})`;
-          if (response.status === 401) openAccountModal(message);
-          if (response.status === 429) openAccountModal(message);
-          throw new Error(message);
-        }
-        const quota = response.headers.get('X-Quota-Status');
-        if (quota) {
-          accountInfo = JSON.parse(quota);
-          updateAccountButton();
-        }
-        return await response.json();
-      } catch (error) {
-        if (!googleIdToken) openAccountModal('Sign in with Google before using AI.');
-        throw error;
+      if (!googleIdToken) {
+        openAccountModal('Sign in with Google before using AI.');
+        throw new Error('Sign in with Google to continue.');
       }
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + googleIdToken
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        const message = result.message || result.error || `AI request failed (HTTP ${response.status})`;
+        if (response.status === 401) {
+          googleIdToken = '';
+          accountInfo = null;
+          updateAccountButton();
+          openAccountModal(message);
+        }
+        if (response.status === 429) openAccountModal(message);
+        throw new Error(message);
+      }
+      const quota = response.headers.get('X-Quota-Status');
+      if (quota) {
+        accountInfo = JSON.parse(quota);
+        updateAccountButton();
+      }
+      return await response.json();
     }
 
     function toggleTheme() {
@@ -1514,6 +1528,7 @@
 
     // Initialize Canvas on load
     window.onload = function() {
+      initGoogleAuth();
       loadWorkerConfig();
       renderMindMapCanvas();
       window.addEventListener('resize', renderMindMapCanvas);

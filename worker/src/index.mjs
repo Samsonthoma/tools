@@ -13,6 +13,13 @@ const ALLOWED_MODELS = new Set([
   'gemini-3.1-flash-image'
 ]);
 
+function freeDailyLimit(env) {
+  const configured = Number(env.FREE_DAILY_LIMIT);
+  return Number.isInteger(configured) && configured > 0 && configured <= 100
+    ? configured
+    : FREE_LIMIT;
+}
+
 let googleKeys;
 let googleKeysExpiresAt = 0;
 
@@ -86,7 +93,7 @@ async function verifyGoogleIdToken(token, clientId) {
     : claims.aud === clientId;
   if (!validSignature || !validIssuer || !validAudience || !claims.sub ||
       !claims.email || claims.email_verified !== true || claims.exp <= now ||
-      claims.iat > now + 60) {
+      claims.iat > now + 60 || !Number.isFinite(claims.exp) || !Number.isFinite(claims.iat)) {
     throw new Error('Google sign-in token is invalid or expired');
   }
   return { id: claims.sub, email: claims.email, name: claims.name || '' };
@@ -136,9 +143,9 @@ async function accountSummary(env, userId) {
   return {
     email: user.email,
     name: user.name,
-    freeLimit: FREE_LIMIT,
+    freeLimit: freeDailyLimit(env),
     freeUsed: usage?.request_count || 0,
-    freeRemaining: Math.max(0, FREE_LIMIT - (usage?.request_count || 0)),
+    freeRemaining: Math.max(0, freeDailyLimit(env) - (usage?.request_count || 0)),
     paidRequests: user.paid_requests,
     subscriptionRequests: subscriptionActive ? user.subscription_requests : 0,
     subscriptionExpiresAt: subscriptionActive ? user.subscription_expires_at : null,
@@ -155,7 +162,7 @@ async function reserveUsage(env, userId) {
     UPDATE daily_usage SET request_count = request_count + 1
     WHERE user_id = ? AND usage_date = ? AND request_count < ?
     RETURNING request_count
-  `).bind(userId, today, FREE_LIMIT).first();
+  `).bind(userId, today, freeDailyLimit(env)).first();
   if (free) return { type: 'free', userId, today };
 
   const subscription = await env.DB.prepare(`
@@ -280,12 +287,20 @@ async function getSubscriptionPlan(env) {
 }
 
 async function createMonthlySubscription(env, user) {
+  const existing = await env.DB.prepare(`
+    SELECT subscription_status, subscription_expires_at FROM users WHERE user_id = ?
+  `).bind(user.id).first();
+  if (existing && ['created', 'active'].includes(existing.subscription_status) &&
+      (!existing.subscription_expires_at ||
+       Date.parse(`${existing.subscription_expires_at.replace(' ', 'T')}Z`) > Date.now())) {
+    return json({ error: 'An active subscription already exists for this account.' }, 409);
+  }
   const planId = await getSubscriptionPlan(env);
   const subscription = await razorpayRequest(env, '/subscriptions', {
     method: 'POST',
     body: {
       plan_id: planId,
-      total_count: 1200,
+      total_count: 999,
       customer_notify: 1,
       notes: { user_id: user.id }
     }
@@ -354,6 +369,7 @@ async function creditSubscription(env, subscriptionId, payment) {
     `).bind(SUBSCRIPTION_REQUESTS, subscription.user_id),
     env.DB.prepare(`
       UPDATE subscriptions SET status = 'active' WHERE subscription_id = ?
+        AND changes() = 1
     `).bind(subscriptionId)
   ]);
   return results[1]?.meta?.changes === 1;
@@ -420,24 +436,32 @@ async function handleWebhook(request, env) {
   if (!constantTimeEqual(expected, signature) || !eventId) {
     return json({ error: 'Invalid webhook signature' }, 400);
   }
-  const results = await env.DB.batch([
-    env.DB.prepare('INSERT OR IGNORE INTO webhook_events (event_id) VALUES (?)').bind(eventId)
-  ]);
-  if (results[0]?.meta?.changes !== 1) return json({ received: true, duplicate: true });
-
+  const alreadyProcessed = await env.DB.prepare(
+    'SELECT event_id FROM webhook_events WHERE event_id = ?'
+  ).bind(eventId).first();
+  if (alreadyProcessed) return json({ received: true, duplicate: true });
   const event = JSON.parse(rawBody);
   const subscription = event.payload?.subscription?.entity;
   if (event.event === 'payment.captured') {
     const payment = event.payload?.payment?.entity;
     if (payment?.order_id) {
-      await creditTopup(env, payment.order_id, payment);
+      const order = await env.DB.prepare(
+        'SELECT order_id FROM payment_orders WHERE order_id = ?'
+      ).bind(payment.order_id).first();
+      if (order) await creditTopup(env, payment.order_id, payment);
     } else if (payment?.subscription_id) {
-      await creditSubscription(env, payment.subscription_id, payment);
+      const userSubscription = await env.DB.prepare(
+        'SELECT subscription_id FROM subscriptions WHERE subscription_id = ?'
+      ).bind(payment.subscription_id).first();
+      if (userSubscription) await creditSubscription(env, payment.subscription_id, payment);
     }
   } else if (event.event === 'subscription.charged') {
     const payment = event.payload?.payment?.entity;
     if (payment?.id && subscription?.id) {
-      await creditSubscription(env, subscription.id, payment);
+      await creditSubscription(env, subscription.id, {
+        ...payment,
+        subscription_id: payment.subscription_id || subscription.id
+      });
     }
   } else if (['subscription.cancelled', 'subscription.halted', 'subscription.completed'].includes(event.event) && subscription?.id) {
     const status = event.event === 'subscription.cancelled'
@@ -445,9 +469,14 @@ async function handleWebhook(request, env) {
       : event.event === 'subscription.halted' ? 'halted' : 'completed';
     await env.DB.batch([
       env.DB.prepare('UPDATE subscriptions SET status = ? WHERE subscription_id = ?').bind(status, subscription.id),
-      env.DB.prepare('UPDATE users SET subscription_status = ? WHERE user_id = (SELECT user_id FROM subscriptions WHERE subscription_id = ?)').bind(status, subscription.id)
+      env.DB.prepare(`
+        UPDATE users SET subscription_status = ?
+        WHERE user_id = (SELECT user_id FROM subscriptions WHERE subscription_id = ?)
+          AND current_subscription_id = ?
+      `).bind(status, subscription.id, subscription.id)
     ]);
   }
+  await env.DB.prepare('INSERT OR IGNORE INTO webhook_events (event_id) VALUES (?)').bind(eventId).run();
   return json({ received: true });
 }
 
@@ -506,7 +535,7 @@ async function route(request, env) {
     return json({
       googleClientId: env.GOOGLE_CLIENT_ID,
       razorpayKeyId: env.RAZORPAY_KEY_ID,
-      freeDailyLimit: FREE_LIMIT,
+      freeDailyLimit: freeDailyLimit(env),
       topup: { amount: TOPUP_AMOUNT, requests: TOPUP_REQUESTS },
       subscription: { amount: SUBSCRIPTION_AMOUNT, requests: SUBSCRIPTION_REQUESTS, days: SUBSCRIPTION_DAYS }
     });
