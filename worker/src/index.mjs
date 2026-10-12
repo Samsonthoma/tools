@@ -127,6 +127,7 @@ async function authenticate(request, env) {
       email = excluded.email,
       name = excluded.name,
       last_login_at = CURRENT_TIMESTAMP
+    WHERE users.last_login_at < datetime('now', '-1 hour')
   `).bind(user.id, user.email, user.name).run();
   return user;
 }
@@ -185,9 +186,15 @@ async function reserveUsage(env, userId) {
     UPDATE users SET subscription_requests = subscription_requests - 1
     WHERE user_id = ? AND subscription_requests > 0
       AND subscription_expires_at > CURRENT_TIMESTAMP
-    RETURNING subscription_requests
+    RETURNING subscription_requests, subscription_expires_at
   `).bind(userId).first();
-  if (subscription) return { type: 'subscription', userId };
+  if (subscription) {
+    return {
+      type: 'subscription',
+      userId,
+      expiresAt: subscription.subscription_expires_at
+    };
+  }
 
   const paid = await env.DB.prepare(`
     UPDATE users SET paid_requests = paid_requests - 1
@@ -230,8 +237,10 @@ async function refundUsage(env, reservation) {
     `).bind(reservation.userId, reservation.today).run();
   } else if (reservation.type === 'subscription') {
     await env.DB.prepare(`
-      UPDATE users SET subscription_requests = subscription_requests + 1 WHERE user_id = ?
-    `).bind(reservation.userId).run();
+      UPDATE users SET subscription_requests = subscription_requests + 1
+      WHERE user_id = ? AND subscription_expires_at = ?
+        AND subscription_expires_at > CURRENT_TIMESTAMP
+    `).bind(reservation.userId, reservation.expiresAt).run();
   } else {
     await env.DB.prepare(`
       UPDATE users SET paid_requests = paid_requests + 1 WHERE user_id = ?
@@ -634,8 +643,6 @@ async function handleWebhook(request, env) {
 async function handleGemini(request, env, user, url) {
   const match = url.pathname.match(/^\/v1beta\/models\/([A-Za-z0-9.-]+):generateContent$/);
   if (!match || !ALLOWED_MODELS.has(match[1])) return json({ error: 'Unsupported AI model' }, 404);
-  const length = Number(request.headers.get('Content-Length') || 0);
-  if (length > MAX_BODY_SIZE) return json({ error: 'Request too large' }, 413);
   const bodyResult = await readLimitedBody(request, MAX_BODY_SIZE);
   if (bodyResult.tooLarge) return json({ error: 'Request too large' }, 413);
   const body = bodyResult.body;

@@ -909,6 +909,7 @@
           accountInfo = null;
           updateAccountButton();
           openAccountModal('Your sign-in expired. Please sign in again.');
+          if (googleAuthInitialized) google.accounts.id.prompt();
         }
         throw new Error(result.message || result.error || `Request failed (${response.status})`);
       }
@@ -1104,6 +1105,7 @@
           accountInfo = null;
           updateAccountButton();
           openAccountModal(message);
+          if (googleAuthInitialized) google.accounts.id.prompt();
         }
         if (response.status === 429) openAccountModal(message);
         throw new Error(message);

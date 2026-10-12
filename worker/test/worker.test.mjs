@@ -41,7 +41,10 @@ class MemoryD1 {
             if (this.subscriptionRequests < 1 || !this.subscriptionExpiresAt ||
                 Date.parse(`${this.subscriptionExpiresAt.replace(' ', 'T')}Z`) <= Date.now()) return null;
             this.subscriptionRequests--;
-            return { subscription_requests: this.subscriptionRequests };
+            return {
+              subscription_requests: this.subscriptionRequests,
+              subscription_expires_at: this.subscriptionExpiresAt
+            };
           }
           if (sql.includes('UPDATE users SET paid_requests = paid_requests - 1')) {
             if (this.paidRequests < 1) return null;
@@ -73,7 +76,11 @@ class MemoryD1 {
         },
         run: async () => {
           if (sql.includes('UPDATE daily_usage SET request_count = MAX')) this.dailyCount = Math.max(0, this.dailyCount - 1);
-          if (sql.includes('UPDATE users SET subscription_requests = subscription_requests + 1')) this.subscriptionRequests++;
+          if (sql.includes('UPDATE users SET subscription_requests = subscription_requests + 1') &&
+              values[1] === this.subscriptionExpiresAt &&
+              Date.parse(`${this.subscriptionExpiresAt.replace(' ', 'T')}Z`) > Date.now()) {
+            this.subscriptionRequests++;
+          }
           if (sql.includes('UPDATE users SET paid_requests = paid_requests + 1')) this.paidRequests++;
           if (sql.includes('INSERT OR IGNORE INTO webhook_events')) {
             const changes = this.webhookEvents.has(values[0]) ? 0 : 1;
@@ -307,6 +314,23 @@ test('uses subscription requests before top-ups and refunds failed subscription 
   assert.equal(database.paidRequests, 10);
   await refundUsage(quotaEnv, reservation);
   assert.equal(database.subscriptionRequests, 1);
+});
+
+test('does not refund an old subscription reservation into a renewed balance', async () => {
+  const database = new MemoryD1();
+  database.dailyCount = 7;
+  database.subscriptionRequests = 1;
+  database.subscriptionExpiresAt = new Date(Date.now() + 86400000)
+    .toISOString().slice(0, 19).replace('T', ' ');
+  const quotaEnv = { DB: database, FREE_DAILY_LIMIT: '7' };
+  const reservation = await reserveUsage(quotaEnv, 'user-1');
+
+  database.subscriptionRequests = 500;
+  database.subscriptionExpiresAt = new Date(Date.now() + 31 * 86400000)
+    .toISOString().slice(0, 19).replace('T', ' ');
+  await refundUsage(quotaEnv, reservation);
+
+  assert.equal(database.subscriptionRequests, 500);
 });
 
 test('credits Razorpay top-ups once even when verification and webhook race', async () => {
