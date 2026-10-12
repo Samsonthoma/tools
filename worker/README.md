@@ -42,6 +42,8 @@ Each verified Google account receives 7 free requests per calendar day in India 
 
 Subscription refunds are applied only while the same 30-day entitlement is still active. If a renewal resets the subscription balance before a failed in-flight request can be refunded, the expired cycle's request is not added to the new cycle's balance.
 
+AI request bodies are limited to 64 KiB, text/audio responses are capped at 2,048 output tokens, and each generation request is restricted to one candidate.
+
 ## Local checks
 
 ```sh

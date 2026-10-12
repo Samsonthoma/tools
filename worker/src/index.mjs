@@ -8,7 +8,8 @@ const SUBSCRIPTION_REQUESTS = 500;
 const SUBSCRIPTION_DAYS = 30;
 // Razorpay subscriptions need a finite cycle count; 999 monthly cycles lasts about 83 years.
 const SUBSCRIPTION_TOTAL_COUNT = 999;
-const MAX_BODY_SIZE = 1024 * 1024;
+const MAX_BODY_SIZE = 64 * 1024;
+const MAX_OUTPUT_TOKENS = 2048;
 const ALLOWED_MODELS = new Set([
   'gemini-3-flash-preview',
   'gemini-2.5-flash-preview-tts',
@@ -107,6 +108,12 @@ async function verifyGoogleIdToken(token, clientId) {
   let jwk = keys.find(key => key.kid === header.kid);
   if (!jwk) jwk = (await loadGoogleKeys(true)).find(key => key.kid === header.kid);
   if (!jwk) throw new InvalidGoogleTokenError('Unknown Google token signing key');
+  let signature;
+  try {
+    signature = base64UrlToBytes(encodedSignature);
+  } catch {
+    throw new InvalidGoogleTokenError('Invalid Google token signature');
+  }
   const publicKey = await crypto.subtle.importKey(
     'jwk',
     jwk,
@@ -114,12 +121,17 @@ async function verifyGoogleIdToken(token, clientId) {
     false,
     ['verify']
   );
-  const validSignature = await crypto.subtle.verify(
-    'RSASSA-PKCS1-v1_5',
-    publicKey,
-    base64UrlToBytes(encodedSignature),
-    new TextEncoder().encode(`${encodedHeader}.${encodedClaims}`)
-  );
+  let validSignature;
+  try {
+    validSignature = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      publicKey,
+      signature,
+      new TextEncoder().encode(`${encodedHeader}.${encodedClaims}`)
+    );
+  } catch {
+    throw new InvalidGoogleTokenError('Invalid Google token signature');
+  }
   const now = Math.floor(Date.now() / 1000);
   const validIssuer = ['accounts.google.com', 'https://accounts.google.com'].includes(claims.iss);
   const validAudience = Array.isArray(claims.aud)
@@ -260,10 +272,12 @@ async function refundUsage(env, reservation) {
       WHERE user_id = ? AND subscription_expires_at = ?
         AND subscription_expires_at > CURRENT_TIMESTAMP
     `).bind(reservation.userId, reservation.expiresAt).run();
-  } else {
+  } else if (reservation.type === 'paid') {
     await env.DB.prepare(`
       UPDATE users SET paid_requests = paid_requests + 1 WHERE user_id = ?
     `).bind(reservation.userId).run();
+  } else {
+    throw new Error('Unknown quota reservation type');
   }
 }
 
@@ -725,12 +739,28 @@ async function handleGemini(request, env, user, url) {
   if (!match || !ALLOWED_MODELS.has(match[1])) return json({ error: 'Unsupported AI model' }, 404);
   const bodyResult = await readLimitedBody(request, MAX_BODY_SIZE);
   if (bodyResult.tooLarge) return json({ error: 'Request too large' }, 413);
-  const body = bodyResult.body;
+  let payload;
   try {
-    JSON.parse(new TextDecoder().decode(body));
+    payload = JSON.parse(new TextDecoder().decode(bodyResult.body));
   } catch {
     return json({ error: 'Invalid JSON request' }, 400);
   }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return json({ error: 'Invalid JSON request' }, 400);
+  }
+  const generationConfig = payload.generationConfig &&
+    typeof payload.generationConfig === 'object' && !Array.isArray(payload.generationConfig)
+    ? payload.generationConfig
+    : {};
+  generationConfig.candidateCount = 1;
+  if (match[1] !== 'gemini-3.1-flash-image') {
+    const requestedTokens = Number(generationConfig.maxOutputTokens);
+    generationConfig.maxOutputTokens = Number.isFinite(requestedTokens) && requestedTokens > 0
+      ? Math.min(MAX_OUTPUT_TOKENS, Math.max(1, Math.trunc(requestedTokens)))
+      : MAX_OUTPUT_TOKENS;
+  }
+  payload.generationConfig = generationConfig;
+  const body = new TextEncoder().encode(JSON.stringify(payload)).buffer;
 
   const reservation = await reserveUsage(env, user.id);
   if (!reservation) {
@@ -745,9 +775,8 @@ async function handleGemini(request, env, user, url) {
     reservationReleased = true;
     await refundUsage(env, reservation);
   };
-  let upstream;
   try {
-    upstream = await fetch(`${GEMINI_BASE_URL}${url.pathname}`, {
+    const upstream = await fetch(`${GEMINI_BASE_URL}${url.pathname}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -755,47 +784,36 @@ async function handleGemini(request, env, user, url) {
       },
       body
     });
-  } catch {
-    await refundReservation();
-    return json({ error: 'AI service temporarily unavailable' }, 502);
-  }
-  let responseBody;
-  try {
-    responseBody = await upstream.arrayBuffer();
-  } catch {
-    await refundReservation();
-    return json({ error: 'AI service temporarily unavailable' }, 502);
-  }
-  if (!upstream.ok) {
-    await refundReservation();
-    return new Response(responseBody, {
-      status: upstream.status,
-      headers: {
-        'Cache-Control': 'no-store',
-        'Content-Type': upstream.headers.get('Content-Type') || 'application/json'
-      }
-    });
-  }
-  const responseHeaders = {
-    'Cache-Control': 'no-store',
-    'Content-Type': upstream.headers.get('Content-Type') || 'application/json'
-  };
-  try {
-    const account = await accountSummary(env, user.id);
-    responseHeaders['X-Quota-Status'] = JSON.stringify({
-      freeLimit: account.freeLimit,
-      freeUsed: account.freeUsed,
-      freeRemaining: account.freeRemaining,
-      paidRequests: account.paidRequests,
-      subscriptionRequests: account.subscriptionRequests,
-      subscriptionExpiresAt: account.subscriptionExpiresAt,
-      subscriptionStatus: account.subscriptionStatus,
-      subscriptionId: account.subscriptionId
-    });
-  } catch (error) {
-    console.error('Unable to refresh quota display', error);
-  }
-  try {
+    const responseBody = await upstream.arrayBuffer();
+    if (!upstream.ok) {
+      await refundReservation();
+      return new Response(responseBody, {
+        status: upstream.status,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Content-Type': upstream.headers.get('Content-Type') || 'application/json'
+        }
+      });
+    }
+    const responseHeaders = {
+      'Cache-Control': 'no-store',
+      'Content-Type': upstream.headers.get('Content-Type') || 'application/json'
+    };
+    try {
+      const account = await accountSummary(env, user.id);
+      responseHeaders['X-Quota-Status'] = JSON.stringify({
+        freeLimit: account.freeLimit,
+        freeUsed: account.freeUsed,
+        freeRemaining: account.freeRemaining,
+        paidRequests: account.paidRequests,
+        subscriptionRequests: account.subscriptionRequests,
+        subscriptionExpiresAt: account.subscriptionExpiresAt,
+        subscriptionStatus: account.subscriptionStatus,
+        subscriptionId: account.subscriptionId
+      });
+    } catch (error) {
+      console.error('Unable to refresh quota display', error);
+    }
     return new Response(responseBody, { status: upstream.status, headers: responseHeaders });
   } catch {
     await refundReservation();

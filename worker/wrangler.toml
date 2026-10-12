@@ -11,5 +11,6 @@ FREE_DAILY_LIMIT = "7"
 [[d1_databases]]
 binding = "DB"
 database_name = "tools-ai-db"
+# Replace this placeholder with the Cloudflare D1 database ID before deploying.
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"

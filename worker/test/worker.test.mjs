@@ -399,6 +399,27 @@ test('rate limits forced Google signing-key refreshes for unknown token kids', a
   }
 });
 
+test('rejects malformed Google signatures as invalid tokens', async () => {
+  const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const malformedToken = `${encode({ alg: 'RS256', kid: validGoogleJwk.kid })}.${encode({
+    iss: 'https://accounts.google.com',
+    aud: env.GOOGLE_CLIENT_ID,
+    sub: 'malformed-user',
+    email: 'malformed@example.com',
+    email_verified: true,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 3600
+  })}.%%%`;
+  const response = await worker.fetch(new Request('https://worker.example/api/me', {
+    headers: {
+      Origin: env.SITE_ORIGIN,
+      Authorization: 'Bearer ' + malformedToken
+    }
+  }), env);
+
+  assert.equal(response.status, 401);
+});
+
 test('reserves at most seven free requests concurrently and refunds failed requests', async () => {
   const database = new MemoryD1();
   const quotaEnv = { DB: database, FREE_DAILY_LIMIT: '7' };
@@ -768,6 +789,9 @@ test('proxies Gemini with the Worker secret and refunds failed upstream requests
   let failUpstream = false;
   globalThis.fetch = async (url, options) => {
     assert.match(String(url), /^https:\/\/generativelanguage\.googleapis\.com\//);
+    const outgoingPayload = JSON.parse(new TextDecoder().decode(options.body));
+    assert.equal(outgoingPayload.generationConfig.maxOutputTokens, 2048);
+    assert.equal(outgoingPayload.generationConfig.candidateCount, 1);
     sentHeaders.push(new Headers(options.headers));
     return failUpstream
       ? new Response('provider error', { status: 503 })
@@ -783,7 +807,10 @@ test('proxies Gemini with the Worker secret and refunds failed upstream requests
           Authorization: 'Bearer ' + validGoogleToken,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ contents: [{ parts: [{ text: 'test' }] }] })
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'test' }] }],
+          generationConfig: { maxOutputTokens: 100000, candidateCount: 8 }
+        })
       }
     );
     const workerEnv = { ...env, DB: database, GEMINI_API_KEY: 'server-only-test-key' };
