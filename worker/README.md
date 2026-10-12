@@ -6,7 +6,7 @@ This Worker proxies Gemini requests, validates Google Identity Services ID token
 
 The Worker is named `tools`, matching the API endpoint `https://tools.samsonthomasminithomas.workers.dev` used by the frontend. The allowed browser site origin is `https://tools.thesouthindianschool.in`.
 
-1. In Cloudflare, create the D1 database named `tools-ai-db` (or use an existing database), then copy its database ID into `wrangler.toml`.
+1. In Cloudflare, create the D1 database named `tools-ai-db` (or use an empty database), then replace `REPLACE_WITH_D1_DATABASE_ID` in `wrangler.toml` with that database's ID before deploying.
 2. From this directory, apply the schema and deploy:
 
    ```sh
@@ -39,6 +39,8 @@ CORS only controls which browser origins can read responses; it is not authentic
 ## Quota behavior
 
 Each verified Google account receives 7 free requests per calendar day in India Standard Time. Free requests are used first; when exhausted, active subscription requests and then top-up requests are used. A reserved request is refunded if the Gemini call fails. D1 serializes the conditional quota updates so concurrent requests cannot exceed a balance.
+
+Subscription refunds are applied only while the same 30-day entitlement is still active. If a renewal resets the subscription balance before a failed in-flight request can be refunded, the expired cycle's request is not added to the new cycle's balance.
 
 ## Local checks
 

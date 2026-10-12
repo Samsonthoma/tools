@@ -72,6 +72,13 @@ class MemoryD1 {
               current_subscription_id: this.currentSubscriptionId
             };
           }
+          if (sql.includes('SELECT subscription_status, subscription_expires_at, current_subscription_id')) {
+            return {
+              subscription_status: this.subscriptionStatus,
+              subscription_expires_at: this.subscriptionExpiresAt,
+              current_subscription_id: this.currentSubscriptionId
+            };
+          }
           return null;
         },
         run: async () => {
@@ -396,6 +403,23 @@ test('a final subscription charge does not undo scheduled cancellation', async (
   assert.equal(credited, true);
   assert.equal(database.subscriptionRequests, 500);
   assert.equal(database.subscriptionStatus, 'cancelled');
+});
+
+test('reuses a pending subscription instead of blocking abandoned checkout', async () => {
+  const database = new MemoryD1();
+  database.subscriptionStatus = 'created';
+  database.currentSubscriptionId = 'sub-pending-checkout';
+  const response = await worker.fetch(new Request('https://worker.example/api/payments/subscription', {
+    method: 'POST',
+    headers: {
+      Origin: env.SITE_ORIGIN,
+      Authorization: 'Bearer ' + validGoogleToken
+    }
+  }), { ...env, DB: database });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.subscriptionId, 'sub-pending-checkout');
 });
 
 test('acknowledges signed Razorpay webhooks with non-matching payment details', async () => {

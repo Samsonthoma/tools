@@ -6,6 +6,8 @@ const TOPUP_REQUESTS = 50;
 const SUBSCRIPTION_AMOUNT = 19900;
 const SUBSCRIPTION_REQUESTS = 500;
 const SUBSCRIPTION_DAYS = 30;
+// Razorpay subscriptions need a finite cycle count; 999 monthly cycles lasts about 83 years.
+const SUBSCRIPTION_TOTAL_COUNT = 999;
 const MAX_BODY_SIZE = 1024 * 1024;
 const ALLOWED_MODELS = new Set([
   'gemini-3-flash-preview',
@@ -126,8 +128,8 @@ async function authenticate(request, env) {
     ON CONFLICT(user_id) DO UPDATE SET
       email = excluded.email,
       name = excluded.name,
-      last_login_at = CURRENT_TIMESTAMP
-    WHERE users.last_login_at < datetime('now', '-1 hour')
+      profile_synced_at = CURRENT_TIMESTAMP
+    WHERE users.profile_synced_at < datetime('now', '-1 hour')
   `).bind(user.id, user.email, user.name).run();
   return user;
 }
@@ -337,9 +339,16 @@ async function getSubscriptionPlan(env) {
 
 async function createMonthlySubscription(env, user) {
   const existing = await env.DB.prepare(`
-    SELECT subscription_status, subscription_expires_at FROM users WHERE user_id = ?
+    SELECT subscription_status, subscription_expires_at, current_subscription_id
+    FROM users WHERE user_id = ?
   `).bind(user.id).first();
-  if (existing && ['created', 'active'].includes(existing.subscription_status) &&
+  if (existing?.subscription_status === 'created' && existing.current_subscription_id) {
+    return json({
+      subscriptionId: existing.current_subscription_id,
+      keyId: env.RAZORPAY_KEY_ID
+    });
+  }
+  if (existing?.subscription_status === 'active' &&
       (!existing.subscription_expires_at ||
        Date.parse(`${existing.subscription_expires_at.replace(' ', 'T')}Z`) > Date.now())) {
     return json({ error: 'An active subscription already exists for this account.' }, 409);
@@ -349,7 +358,7 @@ async function createMonthlySubscription(env, user) {
     method: 'POST',
     body: {
       plan_id: planId,
-      total_count: 999,
+      total_count: SUBSCRIPTION_TOTAL_COUNT,
       customer_notify: 1,
       notes: { user_id: user.id }
     }

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   subscription_status TEXT NOT NULL DEFAULT 'inactive',
   current_subscription_id TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  last_login_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  profile_synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS daily_usage (
