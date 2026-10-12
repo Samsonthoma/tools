@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS processed_payments (
 
 CREATE TABLE IF NOT EXISTS webhook_events (
   event_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'processing',
   received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

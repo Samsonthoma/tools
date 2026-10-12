@@ -200,7 +200,7 @@ async function reserveUsage(env, userId) {
 
 async function readLimitedBody(request, limit) {
   const reader = request.body?.getReader();
-  if (!reader) return new ArrayBuffer(0);
+  if (!reader) return { body: new ArrayBuffer(0), tooLarge: false };
   const chunks = [];
   let totalBytes = 0;
   while (true) {
@@ -544,15 +544,30 @@ async function handleWebhook(request, env) {
   if (!constantTimeEqual(expected, signature) || !eventId) {
     return json({ error: 'Invalid webhook signature' }, 400);
   }
-  const alreadyProcessed = await env.DB.prepare(
-    'SELECT event_id FROM webhook_events WHERE event_id = ?'
-  ).bind(eventId).first();
-  if (alreadyProcessed) return json({ received: true, duplicate: true });
   let event;
   try {
     event = JSON.parse(rawBody);
   } catch {
     return json({ error: 'Invalid webhook payload' }, 400);
+  }
+  const claim = await env.DB.prepare(`
+    INSERT OR IGNORE INTO webhook_events (event_id, status) VALUES (?, 'processing')
+  `).bind(eventId).run();
+  if (claim.meta?.changes !== 1) {
+    const existing = await env.DB.prepare(
+      'SELECT status FROM webhook_events WHERE event_id = ?'
+    ).bind(eventId).first();
+    if (existing?.status === 'completed') return json({ received: true, duplicate: true });
+    const retryClaim = await env.DB.prepare(`
+      UPDATE webhook_events SET status = 'processing', received_at = CURRENT_TIMESTAMP
+      WHERE event_id = ? AND (
+        status = 'failed' OR
+        (status = 'processing' AND received_at < datetime('now', '-5 minutes'))
+      )
+    `).bind(eventId).run();
+    if (retryClaim.meta?.changes !== 1) {
+      return json({ error: 'Webhook event is already being processed' }, 503);
+    }
   }
   let ignored = false;
   try {
@@ -599,10 +614,20 @@ async function handleWebhook(request, env) {
       ]);
     }
   } catch (error) {
-    if (!(error instanceof PaymentMismatchError)) throw error;
-    ignored = true;
+    if (error instanceof PaymentMismatchError) {
+      ignored = true;
+    } else {
+      await env.DB.prepare(`
+        UPDATE webhook_events SET status = 'failed' WHERE event_id = ? AND status = 'processing'
+      `).bind(eventId).run();
+      throw error;
+    }
   }
-  await env.DB.prepare('INSERT OR IGNORE INTO webhook_events (event_id) VALUES (?)').bind(eventId).run();
+  const completed = await env.DB.prepare(`
+    UPDATE webhook_events SET status = 'completed', received_at = CURRENT_TIMESTAMP
+    WHERE event_id = ? AND status = 'processing'
+  `).bind(eventId).run();
+  if (completed.meta?.changes !== 1) return json({ error: 'Could not complete webhook event' }, 503);
   return json({ received: true, ...(ignored ? { ignored: true } : {}) });
 }
 

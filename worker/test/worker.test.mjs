@@ -22,7 +22,7 @@ class MemoryD1 {
     this.order = null;
     this.subscriptions = new Map();
     this.processedPayments = new Set();
-    this.webhookEvents = new Set();
+    this.webhookEvents = new Map();
   }
 
   prepare(sql) {
@@ -51,7 +51,9 @@ class MemoryD1 {
           if (sql.includes('FROM payment_orders')) return this.order;
           if (sql.includes('FROM subscriptions')) return this.subscriptions.get(values[0]) || null;
           if (sql.includes('FROM webhook_events')) {
-            return this.webhookEvents.has(values[0]) ? { event_id: values[0] } : null;
+            return this.webhookEvents.has(values[0])
+              ? { event_id: values[0], status: this.webhookEvents.get(values[0]) }
+              : null;
           }
           if (sql.includes('SELECT request_count FROM daily_usage')) {
             return { request_count: this.dailyCount };
@@ -73,7 +75,26 @@ class MemoryD1 {
           if (sql.includes('UPDATE daily_usage SET request_count = MAX')) this.dailyCount = Math.max(0, this.dailyCount - 1);
           if (sql.includes('UPDATE users SET subscription_requests = subscription_requests + 1')) this.subscriptionRequests++;
           if (sql.includes('UPDATE users SET paid_requests = paid_requests + 1')) this.paidRequests++;
-          if (sql.includes('INSERT OR IGNORE INTO webhook_events')) this.webhookEvents.add(values[0]);
+          if (sql.includes('INSERT OR IGNORE INTO webhook_events')) {
+            const changes = this.webhookEvents.has(values[0]) ? 0 : 1;
+            if (changes) this.webhookEvents.set(values[0], 'processing');
+            return { meta: { changes } };
+          }
+          if (sql.includes("UPDATE webhook_events SET status = 'completed'")) {
+            const changes = this.webhookEvents.get(values[0]) === 'processing' ? 1 : 0;
+            if (changes) this.webhookEvents.set(values[0], 'completed');
+            return { meta: { changes } };
+          }
+          if (sql.includes("UPDATE webhook_events SET status = 'failed'")) {
+            const changes = this.webhookEvents.get(values[0]) === 'processing' ? 1 : 0;
+            if (changes) this.webhookEvents.set(values[0], 'failed');
+            return { meta: { changes } };
+          }
+          if (sql.includes("UPDATE webhook_events SET status = 'processing'")) {
+            const changes = this.webhookEvents.get(values[0]) === 'failed' ? 1 : 0;
+            if (changes) this.webhookEvents.set(values[0], 'processing');
+            return { meta: { changes } };
+          }
           return { meta: { changes: 1 } };
         }
       })
@@ -384,7 +405,17 @@ test('acknowledges signed Razorpay webhooks with non-matching payment details', 
   assert.equal(response.status, 200);
   assert.equal((await response.json()).ignored, true);
   assert.equal(database.paidRequests, 0);
-  assert.ok(database.webhookEvents.has('event-mismatch'));
+  assert.equal(database.webhookEvents.get('event-mismatch'), 'completed');
+
+  const duplicateResponse = await worker.fetch(new Request('https://worker.example/api/payments/webhook', {
+    method: 'POST',
+    headers: {
+      'X-Razorpay-Signature': signature,
+      'X-Razorpay-Event-Id': 'event-mismatch'
+    },
+    body: payload
+  }), { ...env, DB: database, RAZORPAY_WEBHOOK_SECRET: secret });
+  assert.equal((await duplicateResponse.json()).duplicate, true);
 });
 
 test('uses Razorpay HMAC-SHA256 signatures', async () => {
@@ -532,5 +563,22 @@ test('rejects oversized streamed prompts before quota reservation', async () => 
   const response = await worker.fetch(request, { ...env, DB: database });
 
   assert.equal(response.status, 413);
+  assert.equal(database.dailyCount, 0);
+});
+
+test('returns a client error for an AI request without a JSON body', async () => {
+  const database = new MemoryD1();
+  const response = await worker.fetch(new Request(
+    'https://worker.example/v1beta/models/gemini-3-flash-preview:generateContent',
+    {
+      method: 'POST',
+      headers: {
+        Origin: env.SITE_ORIGIN,
+        Authorization: 'Bearer ' + validGoogleToken
+      }
+    }
+  ), { ...env, DB: database });
+
+  assert.equal(response.status, 400);
   assert.equal(database.dailyCount, 0);
 });

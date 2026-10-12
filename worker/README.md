@@ -22,7 +22,7 @@ The Worker is named `tools`, matching the API endpoint `https://tools.samsonthom
    npx wrangler secret put RAZORPAY_WEBHOOK_SECRET
    ```
 
-   Set `RAZORPAY_KEY_ID` as a Worker variable in Cloudflare (it is a public checkout identifier; keeping it as a secret also works). The Google client ID, allowed site origin, and free daily request limit are non-secret Worker variables in `wrangler.toml`. The Google OAuth client must allow `https://tools.thesouthindianschool.in`.
+   Set `RAZORPAY_KEY_ID` as a Worker variable in Cloudflare (it is a public checkout identifier; keeping it as a secret also works). `keep_vars = true` in `wrangler.toml` preserves dashboard variables not listed in the file when deploying. The Google client ID, allowed site origin, and free daily request limit are non-secret Worker variables in `wrangler.toml`. The Google OAuth client must allow `https://tools.thesouthindianschool.in`.
 
 4. In Razorpay, configure a webhook pointing to:
 

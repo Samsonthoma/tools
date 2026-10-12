@@ -16,7 +16,7 @@
     <link rel="canonical" href="https://tools.thesouthindianschool.in/ai-study-suite.html">
     <title>StudyCraft AI - Note-Taking Guide & LLM Learning Suite</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
   
   <!-- Tailwind CSS -->
   <script src="assets/site.js" defer></script>
@@ -1061,15 +1061,17 @@
           : document.createDocumentFragment();
         if (node.tagName === 'A' && clean.nodeType === Node.ELEMENT_NODE) {
           const href = node.getAttribute('href');
-          try {
-            const safeUrl = new URL(href, window.location.origin);
-            if (['http:', 'https:'].includes(safeUrl.protocol)) {
-              clean.setAttribute('href', safeUrl.href);
-              clean.setAttribute('target', '_blank');
-              clean.setAttribute('rel', 'noopener noreferrer');
+          if (href) {
+            try {
+              const safeUrl = new URL(href, window.location.origin);
+              if (['http:', 'https:'].includes(safeUrl.protocol)) {
+                clean.setAttribute('href', safeUrl.href);
+                clean.setAttribute('target', '_blank');
+                clean.setAttribute('rel', 'noopener noreferrer');
+              }
+            } catch {
+              // Invalid generated links are intentionally rendered without a clickable href.
             }
-          } catch {
-            // Invalid generated links are intentionally rendered without a clickable href.
           }
         }
         node.childNodes.forEach(child => clean.append(cleanNode(child)));
