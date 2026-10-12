@@ -826,6 +826,8 @@
     let googleClientId = '';
     let accountInfo = null;
     let googleAuthInitialized = false;
+    let googleReauthPromise = null;
+    let resolveGoogleReauth = null;
     let currentSelectedFormat = 'cornell';
     let currentMindMapData = null;
     let currentFlashcards = [];
@@ -885,10 +887,12 @@
           try {
             await refreshAccount();
             document.getElementById('accountMessage').classList.add('hidden');
+            if (resolveGoogleReauth) resolveGoogleReauth(true);
           } catch (error) {
             googleIdToken = '';
             showAccountMessage(error.message);
             document.getElementById('googleSignInButton').classList.remove('hidden');
+            if (resolveGoogleReauth) resolveGoogleReauth(false);
           }
         }
       });
@@ -896,7 +900,29 @@
       renderGoogleSignInButton();
     }
 
-    async function accountRequest(path, options = {}) {
+    function promptGoogleReauthentication() {
+      if (googleReauthPromise) return googleReauthPromise;
+      if (!googleAuthInitialized) return Promise.resolve(false);
+      googleReauthPromise = new Promise(resolve => {
+        const timeout = setTimeout(() => resolveGoogleReauth?.(false), 30000);
+        const finish = success => {
+          clearTimeout(timeout);
+          if (resolveGoogleReauth === finish) resolveGoogleReauth = null;
+          resolve(success);
+        };
+        resolveGoogleReauth = finish;
+        try {
+          google.accounts.id.prompt();
+        } catch {
+          resolveGoogleReauth(false);
+        }
+      }).finally(() => {
+        googleReauthPromise = null;
+      });
+      return googleReauthPromise;
+    }
+
+    async function accountRequest(path, options = {}, retriedAfterAuth = false) {
       if (!googleIdToken) {
         openAccountModal('Sign in with Google before using AI or making a purchase.');
         throw new Error('Sign in with Google to continue.');
@@ -916,7 +942,9 @@
           accountInfo = null;
           updateAccountButton();
           openAccountModal('Your sign-in expired. Please sign in again.');
-          if (googleAuthInitialized) google.accounts.id.prompt();
+          if (!retriedAfterAuth && await promptGoogleReauthentication()) {
+            return accountRequest(path, options, true);
+          }
         }
         throw new Error(result.message || result.error || `Request failed (${response.status})`);
       }
@@ -1103,7 +1131,7 @@
       return fragment;
     }
 
-    async function callGemini(url, payload) {
+    async function callGemini(url, payload, retriedAfterAuth = false) {
       if (!googleIdToken) {
         openAccountModal('Sign in with Google before using AI.');
         throw new Error('Sign in with Google to continue.');
@@ -1124,7 +1152,9 @@
           accountInfo = null;
           updateAccountButton();
           openAccountModal(message);
-          if (googleAuthInitialized) google.accounts.id.prompt();
+          if (!retriedAfterAuth && await promptGoogleReauthentication()) {
+            return callGemini(url, payload, true);
+          }
         }
         if (response.status === 429) openAccountModal(message);
         throw new Error(message);

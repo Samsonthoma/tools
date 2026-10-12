@@ -278,6 +278,7 @@ test('preflights authorization requests from the configured site', async () => {
 
   assert.equal(response.status, 204);
   assert.match(response.headers.get('Access-Control-Allow-Headers'), /Authorization/);
+  assert.doesNotMatch(response.headers.get('Access-Control-Allow-Headers'), /Razorpay-Signature/);
 });
 
 test('requires a Google ID token for account and AI endpoints', async () => {
@@ -493,10 +494,13 @@ test('credits Razorpay top-ups once even when verification and webhook race', as
     status: 'captured'
   };
 
-  assert.equal(await creditTopup({ DB: database }, 'order-1', payment), true);
-  assert.equal(await creditTopup({ DB: database }, 'order-1', payment), false);
+  assert.equal(await creditTopup({ DB: database }, 'order-1', payment), 'credited');
+  assert.equal(await creditTopup({ DB: database }, 'order-1', payment), 'already_credited');
   assert.equal(database.paidRequests, 50);
-  await creditTopup({ DB: database }, 'order-1', { ...payment, id: 'pay-another' });
+  assert.equal(
+    await creditTopup({ DB: database }, 'order-1', { ...payment, id: 'pay-another' }),
+    'unmatched'
+  );
   assert.equal(database.processedPayments.has('pay-another'), false);
   assert.equal(database.paidRequests, 50);
 });

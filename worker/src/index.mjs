@@ -47,7 +47,7 @@ function corsHeaders(origin, env) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Razorpay-Signature',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     'Access-Control-Expose-Headers': 'X-Quota-Status',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin'
@@ -462,6 +462,13 @@ async function creditTopup(env, orderId, payment) {
   if (!order || order.amount !== TOPUP_AMOUNT || payment.order_id !== orderId ||
       payment.amount !== TOPUP_AMOUNT || payment.currency !== 'INR' ||
       payment.status !== 'captured' || !payment.id) {
+    if (payment.status === 'captured' && payment.id) {
+      console.error('Captured top-up payment requires manual review', {
+        orderId,
+        paymentId: payment.id,
+        userId: order?.user_id
+      });
+    }
     throw new PaymentMismatchError('Payment does not match the order');
   }
   const results = await env.DB.batch([
@@ -479,7 +486,19 @@ async function creditTopup(env, orderId, payment) {
       WHERE user_id = ? AND changes() = 1
     `).bind(TOPUP_REQUESTS, order.user_id)
   ]);
-  return results[2]?.meta?.changes === 1;
+  if (results[2]?.meta?.changes === 1) return 'credited';
+  const settledOrder = await env.DB.prepare(`
+    SELECT status, payment_id FROM payment_orders WHERE order_id = ?
+  `).bind(orderId).first();
+  if (settledOrder?.status === 'paid' && settledOrder.payment_id === payment.id) {
+    return 'already_credited';
+  }
+  console.error('Captured top-up payment was not applied; manual refund may be required', {
+    orderId,
+    paymentId: payment.id,
+    userId: order.user_id
+  });
+  return 'unmatched';
 }
 
 async function creditSubscription(env, subscriptionId, payment) {
@@ -492,6 +511,13 @@ async function creditSubscription(env, subscriptionId, payment) {
   if (!subscription || payment.subscription_id !== subscriptionId ||
       payment.currency !== 'INR' || payment.status !== 'captured' ||
       payment.amount !== SUBSCRIPTION_AMOUNT || !payment.id) {
+    if (payment.status === 'captured' && payment.id) {
+      console.error('Captured subscription payment requires manual review', {
+        subscriptionId,
+        paymentId: payment.id,
+        userId: subscription?.user_id
+      });
+    }
     throw new PaymentMismatchError('Subscription payment does not match');
   }
   // SQLite datetime and CURRENT_TIMESTAMP use the same UTC text format for expiry checks.
@@ -507,7 +533,6 @@ async function creditSubscription(env, subscriptionId, payment) {
     `).bind(payment.id, subscription.user_id, subscription.user_id, subscriptionId, payment.id),
     env.DB.prepare(`
       UPDATE users SET subscription_requests = ?,
-        -- SQLite stores both these values in the same UTC text format.
         subscription_expires_at = datetime('now', '+30 days'),
         subscription_status = CASE
           WHEN subscription_status = 'cancelled' THEN 'cancelled'
@@ -549,6 +574,15 @@ async function verifyTopup(request, env, user) {
   if (!constantTimeEqual(expected, signature)) return json({ error: 'Invalid payment signature' }, 400);
   const payment = await paymentDetails(env, paymentId);
   if (payment.order_id !== orderId || payment.amount !== TOPUP_AMOUNT || payment.currency !== 'INR') {
+    if (payment.status === 'captured') {
+      console.error('Captured top-up payment details do not match its order', {
+        orderId,
+        paymentId
+      });
+      return json({
+        error: 'Payment was captured but does not match this order. Please contact support with the payment reference.'
+      }, 409);
+    }
     return json({ error: 'Payment does not match the order' }, 400);
   }
   if (payment.status !== 'captured') {
@@ -560,10 +594,17 @@ async function verifyTopup(request, env, user) {
     }, pending ? 202 : 400);
   }
   try {
-    await creditTopup(env, orderId, payment);
+    const creditStatus = await creditTopup(env, orderId, payment);
+    if (creditStatus === 'unmatched') {
+      return json({
+        error: 'Payment was captured but not applied. Please contact support with the payment reference.'
+      }, 409);
+    }
   } catch (error) {
     if (error instanceof PaymentMismatchError) {
-      return json({ error: 'Payment does not match the order' }, 400);
+      return json({
+        error: 'Payment was captured but not applied. Please contact support with the payment reference.'
+      }, 409);
     }
     throw error;
   }
@@ -594,6 +635,15 @@ async function verifySubscription(request, env, user) {
   const payment = await paymentDetails(env, paymentId);
   if (payment.subscription_id !== subscriptionId ||
       payment.currency !== 'INR' || payment.amount !== SUBSCRIPTION_AMOUNT) {
+    if (payment.status === 'captured') {
+      console.error('Captured subscription payment details do not match its subscription', {
+        subscriptionId,
+        paymentId
+      });
+      return json({
+        error: 'Payment was captured but does not match this subscription. Please contact support with the payment reference.'
+      }, 409);
+    }
     return json({ error: 'Payment does not match the subscription' }, 400);
   }
   if (payment.status !== 'captured') {
@@ -608,7 +658,9 @@ async function verifySubscription(request, env, user) {
     await creditSubscription(env, subscriptionId, payment);
   } catch (error) {
     if (error instanceof PaymentMismatchError) {
-      return json({ error: 'Payment does not match the subscription' }, 400);
+      return json({
+        error: 'Payment was captured but not applied. Please contact support with the payment reference.'
+      }, 409);
     }
     throw error;
   }
@@ -772,8 +824,8 @@ async function handleGemini(request, env, user, url) {
   let reservationReleased = false;
   const refundReservation = async () => {
     if (reservationReleased) return;
-    reservationReleased = true;
     await refundUsage(env, reservation);
+    reservationReleased = true;
   };
   try {
     const upstream = await fetch(`${GEMINI_BASE_URL}${url.pathname}`, {
@@ -816,7 +868,11 @@ async function handleGemini(request, env, user, url) {
     }
     return new Response(responseBody, { status: upstream.status, headers: responseHeaders });
   } catch {
-    await refundReservation();
+    try {
+      await refundReservation();
+    } catch (error) {
+      console.error('Unable to refund a failed Gemini request', error);
+    }
     return json({ error: 'AI service temporarily unavailable' }, 502);
   }
 }
