@@ -6,6 +6,7 @@ window.SITE = {
   name: "TSIS Tools",
   baseUrl: "https://tools.thesouthindianschool.in",
   school: { name: "The South Indian School", url: "https://thesouthindianschool.in" },
+  apiUrl: "https://tsis-ai-backend.samsonthomasminithomas.workers.dev",
   developer: { name: "Samson Thomas", url: "https://samsonthoma.github.io/" },
   tools: [
     { title: "Utility Toolkit", href: "utility-toolkit.html", icon: "🧰", color: "#2563eb",

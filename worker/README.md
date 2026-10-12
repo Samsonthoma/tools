@@ -4,13 +4,13 @@ This Worker proxies Gemini requests, validates Google Identity Services ID token
 
 ## Deploy
 
-The Worker is named `tools`, matching the API endpoint `https://tools.samsonthomasminithomas.workers.dev` used by the frontend. The allowed browser site origin is `https://tools.thesouthindianschool.in`.
+The Worker is named `tsis-ai-backend`, matching the API endpoint `https://tsis-ai-backend.samsonthomasminithomas.workers.dev` used by the frontend. The allowed browser site origin is `https://tools.thesouthindianschool.in`.
 
-1. In Cloudflare, create the D1 database named `tools-ai-db` (or use an empty database), then replace `REPLACE_WITH_D1_DATABASE_ID` in `wrangler.toml` with that database's ID before deploying.
+1. In Cloudflare, create the D1 database named `tsis_tools_users` (or use an empty database), then confirm `database_id` in `wrangler.toml` matches that database.
 2. From this directory, apply the schema and deploy:
 
    ```sh
-   npx wrangler d1 migrations apply tools-ai-db --remote
+   npx wrangler d1 migrations apply tsis_tools_users --remote
    npx wrangler deploy
    ```
 
@@ -27,7 +27,7 @@ The Worker is named `tools`, matching the API endpoint `https://tools.samsonthom
 4. In Razorpay, configure a webhook pointing to:
 
    ```
-   https://tools.samsonthomasminithomas.workers.dev/api/payments/webhook
+   https://tsis-ai-backend.samsonthomasminithomas.workers.dev/api/payments/webhook
    ```
 
    Use the same webhook secret as `RAZORPAY_WEBHOOK_SECRET` and subscribe to `payment.captured`, `subscription.charged`, `subscription.cancelled`, `subscription.halted`, and `subscription.completed`.

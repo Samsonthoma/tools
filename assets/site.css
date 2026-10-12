@@ -30,3 +30,8 @@
 .sis-card .ic { font-size: 32px; }
 .sis-card h2 { font-size: 1.15rem; margin: 12px 0 6px; color: #0f172a; }
 .sis-card p { margin: 0; color: #64748b; font-size: 14px; line-height: 1.5; }
+
+.sis-auth { display: flex; align-items: center; gap: 8px; margin-left: 6px; font-size: 13px; }
+.sis-user { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sis-signout { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 6px 10px; cursor: pointer; color: #475569; }
+.sis-footer a[href$="privacy.html"], .sis-footer a[href$="terms.html"] { margin: 0 2px; }
