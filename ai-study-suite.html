@@ -15,6 +15,8 @@
   <meta name="description" content="Note-taking guide and LLM learning suite to study smarter.">
     <link rel="canonical" href="https://tools.thesouthindianschool.in/ai-study-suite.html">
     <title>StudyCraft AI - Note-Taking Guide & LLM Learning Suite</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
   
   <!-- Tailwind CSS -->
   <script src="assets/site.js" defer></script>
@@ -114,6 +116,9 @@
 
       <!-- Action Tools & Theme Switcher -->
       <div class="flex items-center space-x-2 sm:space-x-3">
+        <button id="accountButton" onclick="openAccountModal()" class="px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/70">
+          Sign in
+        </button>
         <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Toggle Theme">
           <i class="fa-solid fa-moon dark:hidden text-lg"></i>
           <i class="fa-solid fa-sun hidden dark:block text-lg"></i>
@@ -156,6 +161,48 @@
       </div>
     </div>
   </header>
+
+  <div id="accountModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+    <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl text-slate-800 dark:text-slate-100">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 id="accountModalTitle" class="text-xl font-bold">StudyCraft AI account</h2>
+          <p id="accountIdentity" class="text-sm text-slate-500 dark:text-slate-400 mt-1">Sign in or create an account with Google.</p>
+        </div>
+        <button onclick="closeAccountModal()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" aria-label="Close">&times;</button>
+      </div>
+      <div id="googleSignInButton" class="mt-5"></div>
+      <div id="accountDetails" class="hidden mt-5 space-y-4">
+        <div class="rounded-xl bg-slate-50 dark:bg-slate-900 p-4 text-sm">
+          <p id="accountQuotaText" class="font-semibold"></p>
+          <p id="accountPaidText" class="mt-1 text-slate-600 dark:text-slate-300"></p>
+          <p id="accountSubscriptionText" class="mt-1 text-slate-600 dark:text-slate-300"></p>
+        </div>
+        <div class="space-y-2">
+          <button onclick="buyTopup()" class="w-full px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-left">
+            <span class="font-bold">₹49 — 50 extra AI requests</span>
+          </button>
+          <button onclick="buyMonthlySubscription()" class="w-full px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-left">
+            <span class="font-bold">₹199/month — 500 requests</span>
+            <span class="block text-xs opacity-90">Recurring monthly billing; each successful payment grants 30 days of access.</span>
+          </button>
+          <button id="cancelSubscriptionButton" onclick="showCancelSubscriptionConfirmation()" class="hidden w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm">
+            Cancel subscription renewal
+          </button>
+          <div id="cancelSubscriptionConfirmation" class="hidden rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3">
+            <p class="text-sm">Cancel renewal? Your existing subscription requests remain available until they expire.</p>
+            <div class="mt-3 flex justify-end gap-2">
+              <button onclick="hideCancelSubscriptionConfirmation()" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm">Keep it</button>
+              <button onclick="cancelMonthlySubscription()" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm">Confirm cancellation</button>
+            </div>
+          </div>
+        </div>
+        <button onclick="signOutGoogle()" class="text-sm text-slate-500 underline">Sign out</button>
+      </div>
+      <p id="accountMessage" class="hidden mt-4 rounded-lg bg-amber-50 dark:bg-amber-900/30 p-3 text-sm text-amber-800 dark:text-amber-200"></p>
+      <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">Free usage: 7 requests per calendar day (IST). Failed AI requests are refunded. Payments are processed by Razorpay.</p>
+    </div>
+  </div>
 
   <!-- Main Container -->
   <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -774,59 +821,13 @@
 
   <!-- JavaScript Application Logic -->
   <script>
-    // Optional site-wide default key. Leave empty unless it is a Google AI Studio key restricted
-    // to this site's HTTP referrer (website restriction) and to the Generative Language API:
-    // anything in this file is public. Users can supply their own key at runtime instead.
-    const DEFAULT_API_KEY = (() => {
-      const k = "__GEMINI_API_KEY__";
-      return k.startsWith("__") ? "" : k;
-    })();
-    // Session-only key pasted by the user: kept in memory only (never stored, logged or sent anywhere except Google).
-    let userApiKey = "";
-
-    function askForApiKey(reason) {
-      return new Promise(resolve => {
-        const overlay = document.createElement('div');
-        overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4';
-        overlay.setAttribute('role', 'dialog');
-        overlay.setAttribute('aria-modal', 'true');
-        overlay.innerHTML = `
-          <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl text-slate-800 dark:text-slate-100">
-            <h2 class="text-lg font-bold mb-2">Gemini API key needed</h2>
-            <p class="text-sm mb-3" id="apiKeyReason"></p>
-            <p class="text-sm mb-3">Get a free key from
-              <a class="text-indigo-600 underline" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>
-              and paste it below. It is used for this browser session only: kept in memory, never saved, and sent only to Google's Gemini API. Closing or reloading this page forgets it.</p>
-            <input id="apiKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your Gemini API key"
-              class="w-full p-3 border rounded-lg bg-white dark:bg-slate-900 dark:border-slate-600 mb-4 outline-none focus:ring-2 focus:ring-indigo-400">
-            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Never share your key with others. You can delete it any time in Google AI Studio.</p>
-            <div class="flex justify-end gap-2">
-              <button id="apiKeyCancel" type="button" class="px-4 py-2 rounded-lg border dark:border-slate-600">Cancel</button>
-              <button id="apiKeyOk" type="button" class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold">Use for this session</button>
-            </div>
-          </div>`;
-        overlay.querySelector('#apiKeyReason').textContent = reason;
-        document.body.appendChild(overlay);
-        const input = overlay.querySelector('#apiKeyInput');
-        input.focus();
-        const done = v => { overlay.remove(); resolve(v); };
-        overlay.querySelector('#apiKeyCancel').onclick = () => done(null);
-        overlay.querySelector('#apiKeyOk').onclick = () => {
-          const v = input.value.trim();
-          if (/^[A-Za-z0-9_\-]{20,100}$/.test(v)) done(v);
-          else { input.classList.add('border-red-500'); input.value = ''; input.placeholder = 'That does not look like a valid key'; }
-        };
-        input.addEventListener('keydown', e => { if (e.key === 'Enter') overlay.querySelector('#apiKeyOk').click(); });
-      });
-    }
-
-    async function ensureApiKey(reason) {
-      if (userApiKey || DEFAULT_API_KEY) return true;
-      const k = await askForApiKey(reason || 'This tool needs a Google Gemini API key to work.');
-      if (!k) return false;
-      userApiKey = k;
-      return true;
-    }
+    const WORKER_API_URL = 'https://tools.samsonthomasminithomas.workers.dev';
+    let googleIdToken = '';
+    let googleClientId = '';
+    let accountInfo = null;
+    let googleAuthInitialized = false;
+    let googleReauthPromise = null;
+    let resolveGoogleReauth = null;
     let currentSelectedFormat = 'cornell';
     let currentMindMapData = null;
     let currentFlashcards = [];
@@ -835,43 +836,339 @@
     let mindMapPanX = 0;
     let mindMapPanY = 0;
 
-    // Helper: Exponential Backoff Fetch for Gemini API
-    async function callGemini(url, payload, retries = 3, askedUser = false) {
-      if (!(await ensureApiKey())) throw new Error('A Gemini API key is required. Please provide one and try again.');
-      let delay = 1000;
-      for (let i = 0; i < retries; i++) {
-        try {
-          const res = await fetch(url, {
-            method: 'POST',
-            referrerPolicy: 'no-referrer',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': userApiKey || DEFAULT_API_KEY },
-            body: JSON.stringify(payload)
-          });
-          if (!res.ok) {
-            // Invalid/expired key (400/401/403) or exhausted quota (429): ask the user for their own key.
-            const keyProblem = [400, 401, 403].includes(res.status);
-            if ((keyProblem || (res.status === 429 && i === retries - 1)) && !askedUser) {
-              userApiKey = '';
-              const reason = res.status === 429
-                ? 'The shared Gemini quota is exhausted. Paste your own free API key to continue.'
-                : 'The Gemini API key was rejected. Paste a valid API key to continue.';
-              if (await ensureApiKey(reason)) return callGemini(url, payload, retries, true);
-              throw new Error('Gemini API key required (HTTP ' + res.status + ')');
-            }
-            if (res.status === 429) {
-              await new Promise(r => setTimeout(r, delay));
-              delay *= 2;
-              continue;
-            }
-            throw new Error(`Gemini API Error HTTP ${res.status}`);
+    function showAccountMessage(message) {
+      const element = document.getElementById('accountMessage');
+      element.textContent = message;
+      element.classList.remove('hidden');
+    }
+
+    function openAccountModal(message = '') {
+      document.getElementById('accountModal').classList.remove('hidden');
+      if (message) showAccountMessage(message);
+      if (googleAuthInitialized) renderGoogleSignInButton();
+    }
+
+    function closeAccountModal() {
+      document.getElementById('accountModal').classList.add('hidden');
+    }
+
+    function renderGoogleSignInButton() {
+      const target = document.getElementById('googleSignInButton');
+      if (!target || !window.google?.accounts?.id || !googleClientId || googleIdToken) return;
+      target.replaceChildren();
+      google.accounts.id.renderButton(target, {
+        theme: document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'rectangular',
+        width: Math.min(target.clientWidth || 320, 360)
+      });
+    }
+
+    async function loadWorkerConfig() {
+      try {
+        const response = await fetch(`${WORKER_API_URL}/api/config`);
+        if (!response.ok) throw new Error('Unable to load sign-in configuration');
+        const config = await response.json();
+        googleClientId = config.googleClientId;
+        if (window.google?.accounts?.id) initGoogleAuth();
+      } catch (error) {
+        showAccountMessage(error.message);
+      }
+    }
+
+    function initGoogleAuth() {
+      if (googleAuthInitialized || !googleClientId || !window.google?.accounts?.id) return;
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async response => {
+          googleIdToken = response.credential;
+          document.getElementById('googleSignInButton').classList.add('hidden');
+          try {
+            await refreshAccount();
+            document.getElementById('accountMessage').classList.add('hidden');
+            if (resolveGoogleReauth) resolveGoogleReauth(true);
+          } catch (error) {
+            googleIdToken = '';
+            showAccountMessage(error.message);
+            document.getElementById('googleSignInButton').classList.remove('hidden');
+            if (resolveGoogleReauth) resolveGoogleReauth(false);
           }
-          return await res.json();
-        } catch (err) {
-          if (i === retries - 1 || /key required|key is required/i.test(err.message)) throw err;
-          await new Promise(r => setTimeout(r, delay));
-          delay *= 2;
+        }
+      });
+      googleAuthInitialized = true;
+      renderGoogleSignInButton();
+    }
+
+    function promptGoogleReauthentication() {
+      if (googleReauthPromise) return googleReauthPromise;
+      if (!googleAuthInitialized) return Promise.resolve(false);
+      googleReauthPromise = new Promise(resolve => {
+        const timeout = setTimeout(() => resolveGoogleReauth?.(false), 30000);
+        const finish = success => {
+          clearTimeout(timeout);
+          if (resolveGoogleReauth === finish) resolveGoogleReauth = null;
+          resolve(success);
+        };
+        resolveGoogleReauth = finish;
+        try {
+          google.accounts.id.prompt();
+        } catch {
+          resolveGoogleReauth(false);
+        }
+      }).finally(() => {
+        googleReauthPromise = null;
+      });
+      return googleReauthPromise;
+    }
+
+    async function accountRequest(path, options = {}, retriedAfterAuth = false) {
+      if (!googleIdToken) {
+        openAccountModal('Sign in with Google before using AI or making a purchase.');
+        throw new Error('Sign in with Google to continue.');
+      }
+      const response = await fetch(`${WORKER_API_URL}${path}`, {
+        ...options,
+        headers: {
+          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+          Authorization: 'Bearer ' + googleIdToken,
+          ...options.headers
+        }
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) {
+          googleIdToken = '';
+          accountInfo = null;
+          updateAccountButton();
+          openAccountModal('Your sign-in expired. Please sign in again.');
+          if (!retriedAfterAuth && await promptGoogleReauthentication()) {
+            return accountRequest(path, options, true);
+          }
+        }
+        throw new Error(result.message || result.error || `Request failed (${response.status})`);
+      }
+      return result;
+    }
+
+    function updateAccountButton() {
+      const button = document.getElementById('accountButton');
+      button.textContent = accountInfo ? `${accountInfo.freeRemaining} free left today` : 'Sign in';
+      document.getElementById('googleSignInButton').classList.toggle('hidden', Boolean(accountInfo));
+      document.getElementById('accountDetails').classList.toggle('hidden', !accountInfo);
+      document.getElementById('accountIdentity').textContent = accountInfo
+        ? `Signed in as ${accountInfo.email}`
+        : 'Sign in or create an account with Google.';
+      if (!accountInfo) return;
+      document.getElementById('accountQuotaText').textContent =
+        `${accountInfo.freeRemaining} of ${accountInfo.freeLimit} free requests remaining today (IST)`;
+      document.getElementById('accountPaidText').textContent =
+        `${accountInfo.paidRequests} top-up requests available`;
+      const hasSubscription = accountInfo.subscriptionExpiresAt &&
+        accountInfo.subscriptionRequests > 0;
+      document.getElementById('accountSubscriptionText').textContent = hasSubscription
+        ? `${accountInfo.subscriptionRequests} subscription requests available until ${accountInfo.subscriptionExpiresAt}`
+        : 'No active subscription requests.';
+      const cancelButton = document.getElementById('cancelSubscriptionButton');
+      cancelButton.textContent = accountInfo.subscriptionStatus === 'created'
+        ? 'Cancel pending subscription'
+        : 'Cancel subscription renewal';
+      cancelButton.classList.toggle(
+        'hidden',
+        !accountInfo.subscriptionId || ['cancelled', 'completed', 'inactive'].includes(accountInfo.subscriptionStatus)
+      );
+    }
+
+    async function refreshAccount() {
+      const result = await accountRequest('/api/me');
+      accountInfo = result.account;
+      updateAccountButton();
+    }
+
+    function signOutGoogle() {
+      googleIdToken = '';
+      accountInfo = null;
+      if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
+      updateAccountButton();
+      renderGoogleSignInButton();
+    }
+
+    async function openRazorpayCheckout(options, verifyPath, bodyFields) {
+      if (!window.Razorpay) throw new Error('Razorpay Checkout could not be loaded.');
+      const checkout = new Razorpay({
+        ...options,
+        handler: async response => {
+          try {
+            const body = Object.fromEntries(
+              Object.entries(bodyFields).map(([field, razorpayField]) => [field, response[razorpayField]])
+            );
+            const result = await accountRequest(verifyPath, {
+              method: 'POST',
+              body: JSON.stringify(body)
+            });
+            accountInfo = result.account;
+            updateAccountButton();
+            showAccountMessage(result.paymentPending
+              ? 'Your payment is processing. Requests will be added after Razorpay confirms it.'
+              : 'Payment verified. Your account quota has been updated.');
+          } catch (error) {
+            showAccountMessage(`Payment received but could not be verified yet: ${error.message}`);
+          }
+        },
+        modal: {
+          ondismiss: () => refreshAccount().catch(() => {})
+        }
+      });
+      checkout.on('payment.failed', response => {
+        showAccountMessage(response.error?.description || 'Payment failed. You have not been charged for an unsuccessful payment.');
+      });
+      checkout.open();
+    }
+
+    async function buyTopup() {
+      try {
+        const order = await accountRequest('/api/payments/order', { method: 'POST' });
+        await openRazorpayCheckout({
+          key: order.keyId,
+          order_id: order.orderId,
+          amount: order.amount,
+          currency: order.currency,
+          name: 'StudyCraft AI',
+          description: '50 AI requests',
+          prefill: { email: accountInfo.email },
+          theme: { color: '#4f46e5' }
+        }, '/api/payments/verify-topup', {
+          orderId: 'razorpay_order_id',
+          paymentId: 'razorpay_payment_id',
+          signature: 'razorpay_signature'
+        });
+      } catch (error) {
+        showAccountMessage(error.message);
+      }
+    }
+
+    async function buyMonthlySubscription() {
+      try {
+        const subscription = await accountRequest('/api/payments/subscription', { method: 'POST' });
+        await openRazorpayCheckout({
+          key: subscription.keyId,
+          subscription_id: subscription.subscriptionId,
+          name: 'StudyCraft AI',
+          description: '500 AI requests per monthly billing cycle',
+          prefill: { email: accountInfo.email },
+          theme: { color: '#7c3aed' }
+        }, '/api/payments/verify-subscription', {
+          subscriptionId: 'razorpay_subscription_id',
+          paymentId: 'razorpay_payment_id',
+          signature: 'razorpay_signature'
+        });
+      } catch (error) {
+        showAccountMessage(error.message);
+      }
+    }
+
+    function showCancelSubscriptionConfirmation() {
+      document.getElementById('cancelSubscriptionConfirmation').classList.remove('hidden');
+    }
+
+    function hideCancelSubscriptionConfirmation() {
+      document.getElementById('cancelSubscriptionConfirmation').classList.add('hidden');
+    }
+
+    async function cancelMonthlySubscription() {
+      try {
+        const result = await accountRequest('/api/payments/cancel-subscription', { method: 'POST' });
+        accountInfo = result.account;
+        updateAccountButton();
+        hideCancelSubscriptionConfirmation();
+        showAccountMessage('Subscription renewal cancelled.');
+      } catch (error) {
+        showAccountMessage(error.message);
+      }
+    }
+
+    function sanitizeAIHtml(markup) {
+      const allowedTags = new Set([
+        'A', 'BLOCKQUOTE', 'BR', 'CODE', 'EM', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+        'HR', 'I', 'LI', 'OL', 'P', 'PRE', 'S', 'STRONG', 'SUB', 'SUP', 'TABLE',
+        'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'U', 'UL'
+      ]);
+      const blockedTags = new Set([
+        'AUDIO', 'EMBED', 'IFRAME', 'MATH', 'OBJECT', 'SCRIPT', 'STYLE', 'SVG',
+        'TEMPLATE', 'VIDEO'
+      ]);
+      const source = new DOMParser().parseFromString(String(markup), 'text/html');
+
+      function cleanNode(node) {
+        if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.nodeValue || '');
+        if (node.nodeType !== Node.ELEMENT_NODE) return document.createDocumentFragment();
+        if (blockedTags.has(node.tagName)) return document.createDocumentFragment();
+
+        const clean = allowedTags.has(node.tagName)
+          ? document.createElement(node.tagName.toLowerCase())
+          : document.createDocumentFragment();
+        if (node.tagName === 'A' && clean.nodeType === Node.ELEMENT_NODE) {
+          const href = node.getAttribute('href');
+          if (href) {
+            try {
+              const safeUrl = new URL(href, window.location.origin);
+              if (['http:', 'https:'].includes(safeUrl.protocol)) {
+                clean.setAttribute('href', safeUrl.href);
+                clean.setAttribute('target', '_blank');
+                clean.setAttribute('rel', 'noopener noreferrer');
+              }
+            } catch {
+              // Invalid generated links are intentionally rendered without a clickable href.
+            }
+          }
+        }
+        node.childNodes.forEach(child => clean.append(cleanNode(child)));
+        return clean;
+      }
+
+      const fragment = document.createDocumentFragment();
+      source.body.childNodes.forEach(child => fragment.append(cleanNode(child)));
+      return fragment;
+    }
+
+    async function callGemini(url, payload, retriedAfterAuth = false) {
+      if (!googleIdToken) {
+        openAccountModal('Sign in with Google before using AI.');
+        throw new Error('Sign in with Google to continue.');
+      }
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + googleIdToken
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        const message = result.message || result.error || `AI request failed (HTTP ${response.status})`;
+        if (response.status === 401) {
+          googleIdToken = '';
+          accountInfo = null;
+          updateAccountButton();
+          openAccountModal(message);
+          if (!retriedAfterAuth && await promptGoogleReauthentication()) {
+            return callGemini(url, payload, true);
+          }
+        }
+        if (response.status === 429) openAccountModal(message);
+        throw new Error(message);
+      }
+      const quota = response.headers.get('X-Quota-Status');
+      if (quota) {
+        try {
+          accountInfo = { ...accountInfo, ...JSON.parse(quota) };
+          updateAccountButton();
+        } catch {
+          // Ignore malformed optional metadata; the AI response is still valid.
         }
       }
+      return await response.json();
     }
 
     function toggleTheme() {
@@ -921,7 +1218,7 @@
       btn.disabled = true;
 
       const systemPrompt = `You are an expert educational note-formatting assistant. Convert the provided user text into the requested format cleanly using clean HTML formatting (with bold, lists, and clear headers). Format requested: ${currentSelectedFormat}.`;
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
 
       try {
         const data = await callGemini(url, {
@@ -932,7 +1229,7 @@
         const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to transform notes.';
         
         document.getElementById('transformerOutputCard').classList.remove('hidden');
-        document.getElementById('transformerFormattedResult').innerHTML = textResult;
+        document.getElementById('transformerFormattedResult').replaceChildren(sanitizeAIHtml(textResult));
       } catch (err) {
         alert('Error transforming notes: ' + err.message);
       } finally {
@@ -953,7 +1250,7 @@
     }
 
     async function playSectionAudio(sectionId, textPrompt) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-2.5-flash-preview-tts:generateContent`;
       
       const payload = {
         contents: [{ parts: [{ text: `Say in a clear, engaging tutor tone: ${textPrompt}` }] }],
@@ -1036,7 +1333,7 @@
       btn.disabled = true;
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating Tree...`;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: `Create a structured mind map hierarchy for the topic: "${topic}". Return JSON.` }] }],
         generationConfig: {
@@ -1149,7 +1446,7 @@
 
     async function generateAIFlashcards() {
       const topic = document.getElementById('flashcardTopicInput').value.trim() || 'Note-Taking Techniques';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
 
       const payload = {
         contents: [{ parts: [{ text: `Generate 5 active recall study flashcards on "${topic}".` }] }],
@@ -1228,7 +1525,7 @@
       btn.disabled = true;
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Rendering Image...`;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3.1-flash-image:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
@@ -1268,15 +1565,17 @@
       if (!msg) return;
 
       const chatHistory = document.getElementById('chatHistory');
-      chatHistory.innerHTML += `
-        <div class="flex justify-end">
-          <div class="p-3 rounded-2xl bg-indigo-600 text-white max-w-[85%]">${msg}</div>
-        </div>
-      `;
+      const userRow = document.createElement('div');
+      userRow.className = 'flex justify-end';
+      const userBubble = document.createElement('div');
+      userBubble.className = 'p-3 rounded-2xl bg-indigo-600 text-white max-w-[85%]';
+      userBubble.textContent = msg;
+      userRow.append(userBubble);
+      chatHistory.append(userRow);
       inputEl.value = '';
       chatHistory.scrollTop = chatHistory.scrollHeight;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: msg }] }],
         systemInstruction: { parts: [{ text: 'You are StudyCraft AI, an encouraging and clear educational coach for middle and high school students.' }] }
@@ -1286,12 +1585,16 @@
         const data = await callGemini(url, payload);
         const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'I am here to help!';
 
-        chatHistory.innerHTML += `
-          <div class="flex items-start space-x-3">
-            <div class="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shrink-0">AI</div>
-            <div class="p-3.5 rounded-2xl bg-indigo-50 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 max-w-[85%]">${reply}</div>
-          </div>
-        `;
+        const assistantRow = document.createElement('div');
+        assistantRow.className = 'flex items-start space-x-3';
+        const assistantIcon = document.createElement('div');
+        assistantIcon.className = 'w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shrink-0';
+        assistantIcon.textContent = 'AI';
+        const assistantBubble = document.createElement('div');
+        assistantBubble.className = 'p-3.5 rounded-2xl bg-indigo-50 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 max-w-[85%]';
+        assistantBubble.textContent = reply;
+        assistantRow.append(assistantIcon, assistantBubble);
+        chatHistory.append(assistantRow);
         chatHistory.scrollTop = chatHistory.scrollHeight;
       } catch (err) {
         console.error(err);
@@ -1316,7 +1619,7 @@
       box.classList.remove('hidden');
       box.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Gemini is evaluating your recall completeness...`;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent`;
+      const url = `${WORKER_API_URL}/v1beta/models/gemini-3-flash-preview:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: `Topic: "${topic}". User Recall Attempt: "${recallText}". Evaluate recall completeness, list key points missed, and give a score out of 100.` }] }]
       };
@@ -1324,14 +1627,19 @@
       try {
         const data = await callGemini(url, payload);
         const evaluation = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Evaluation complete!';
-        box.innerHTML = `<strong class="text-purple-600 dark:text-purple-400 block mb-1">AI Recall Assessment:</strong> ${evaluation}`;
+        const heading = document.createElement('strong');
+        heading.className = 'text-purple-600 dark:text-purple-400 block mb-1';
+        heading.textContent = 'AI Recall Assessment:';
+        box.replaceChildren(heading, sanitizeAIHtml(evaluation));
       } catch (err) {
-        box.innerHTML = 'Error evaluating recall.';
+        box.textContent = 'Error evaluating recall.';
       }
     }
 
     // Initialize Canvas on load
     window.onload = function() {
+      initGoogleAuth();
+      loadWorkerConfig();
       renderMindMapCanvas();
       window.addEventListener('resize', renderMindMapCanvas);
     };
