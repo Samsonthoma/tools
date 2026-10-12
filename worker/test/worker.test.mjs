@@ -10,6 +10,7 @@ const env = {
   RAZORPAY_KEY_ID: 'test-key-id'
 };
 let validGoogleToken;
+let validGoogleJwk;
 
 class MemoryD1 {
   constructor() {
@@ -52,7 +53,10 @@ class MemoryD1 {
             return { paid_requests: this.paidRequests };
           }
           if (sql.includes('FROM payment_orders')) return this.order;
-          if (sql.includes('FROM subscriptions')) return this.subscriptions.get(values[0]) || null;
+          if (sql.includes('FROM subscriptions')) {
+            if (sql.includes('JOIN users') && this.currentSubscriptionId !== values[0]) return null;
+            return this.subscriptions.get(values[0]) || null;
+          }
           if (sql.includes('FROM webhook_events')) {
             return this.webhookEvents.has(values[0])
               ? { event_id: values[0], status: this.webhookEvents.get(values[0]) }
@@ -218,6 +222,7 @@ test('accepts a correctly signed Google ID token for the account endpoint', asyn
   publicJwk.kid = 'test-signing-key';
   publicJwk.alg = 'RS256';
   publicJwk.use = 'sig';
+  validGoogleJwk = publicJwk;
 
   const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
   const header = encode({ alg: 'RS256', kid: publicJwk.kid });
@@ -275,6 +280,43 @@ test('accepts a correctly signed Google ID token for the account endpoint', asyn
     assert.equal(result.account.freeRemaining, 7);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('rate limits forced Google signing-key refreshes for unknown token kids', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  const testNow = originalNow() + 120000;
+  Date.now = () => testNow;
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount++;
+    return Response.json({ keys: [validGoogleJwk] });
+  };
+  const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const token = `${encode({ alg: 'RS256', kid: 'unknown-signing-key' })}.${encode({
+    iss: 'https://accounts.google.com',
+    aud: env.GOOGLE_CLIENT_ID,
+    sub: 'invalid-user',
+    email: 'invalid@example.com',
+    email_verified: true,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 3600
+  })}.AA`;
+  try {
+    for (let i = 0; i < 2; i++) {
+      const response = await worker.fetch(new Request('https://worker.example/api/me', {
+        headers: {
+          Origin: env.SITE_ORIGIN,
+          Authorization: 'Bearer ' + token
+        }
+      }), env);
+      assert.equal(response.status, 401);
+    }
+    assert.equal(fetchCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    Date.now = originalNow;
   }
 });
 
@@ -375,11 +417,11 @@ test('only credits the currently selected subscription', async () => {
   assert.equal(await creditSubscription({ DB: database }, 'sub-current', payment), true);
   assert.equal(database.subscriptionRequests, 500);
   assert.equal(database.subscriptionStatus, 'active');
-  assert.equal(await creditSubscription({ DB: database }, 'sub-old', {
+  await assert.rejects(creditSubscription({ DB: database }, 'sub-old', {
     ...payment,
     id: 'pay-old',
     subscription_id: 'sub-old'
-  }), false);
+  }), /Subscription payment does not match/);
   assert.equal(database.subscriptionStatus, 'active');
 });
 
@@ -464,6 +506,16 @@ test('acknowledges signed Razorpay webhooks with non-matching payment details', 
     body: payload
   }), { ...env, DB: database, RAZORPAY_WEBHOOK_SECRET: secret });
   assert.equal((await duplicateResponse.json()).duplicate, true);
+});
+
+test('fails closed when the Razorpay webhook secret is not configured', async () => {
+  const response = await worker.fetch(new Request('https://worker.example/api/payments/webhook', {
+    method: 'POST',
+    body: '{}'
+  }), { ...env, DB: new MemoryD1() });
+
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error, 'Webhook is not configured');
 });
 
 test('uses Razorpay HMAC-SHA256 signatures', async () => {

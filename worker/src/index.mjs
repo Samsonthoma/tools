@@ -27,6 +27,8 @@ function freeDailyLimit(env) {
 
 let googleKeys;
 let googleKeysExpiresAt = 0;
+let googleKeysLastForcedRefreshAt = 0;
+let googleKeysRefreshInFlight;
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
@@ -63,12 +65,27 @@ function decodeJwtPart(value) {
 
 async function loadGoogleKeys(forceRefresh = false) {
   if (!forceRefresh && googleKeys && Date.now() < googleKeysExpiresAt) return googleKeys;
-  const response = await fetch(GOOGLE_CERTS_URL);
-  if (!response.ok) throw new Error('Unable to retrieve Google signing keys');
-  const data = await response.json();
-  googleKeys = data.keys || [];
-  googleKeysExpiresAt = Date.now() + 60 * 60 * 1000;
-  return googleKeys;
+  if (forceRefresh) {
+    if (Date.now() - googleKeysLastForcedRefreshAt < 60 * 1000) {
+      if (googleKeys) return googleKeys;
+      throw new Error('Google signing keys are temporarily unavailable');
+    }
+    googleKeysLastForcedRefreshAt = Date.now();
+  }
+  if (googleKeysRefreshInFlight) return googleKeysRefreshInFlight;
+  googleKeysRefreshInFlight = (async () => {
+    const response = await fetch(GOOGLE_CERTS_URL);
+    if (!response.ok) throw new Error('Unable to retrieve Google signing keys');
+    const data = await response.json();
+    googleKeys = data.keys || [];
+    googleKeysExpiresAt = Date.now() + 60 * 60 * 1000;
+    return googleKeys;
+  })();
+  try {
+    return await googleKeysRefreshInFlight;
+  } finally {
+    googleKeysRefreshInFlight = null;
+  }
 }
 
 async function verifyGoogleIdToken(token, clientId) {
@@ -409,13 +426,17 @@ async function creditTopup(env, orderId, payment) {
 
 async function creditSubscription(env, subscriptionId, payment) {
   const subscription = await env.DB.prepare(`
-    SELECT user_id FROM subscriptions WHERE subscription_id = ?
+    SELECT subscriptions.user_id FROM subscriptions
+    JOIN users ON users.user_id = subscriptions.user_id
+    WHERE subscriptions.subscription_id = ?
+      AND users.current_subscription_id = subscriptions.subscription_id
   `).bind(subscriptionId).first();
   if (!subscription || payment.subscription_id !== subscriptionId ||
       payment.currency !== 'INR' || payment.status !== 'captured' ||
       payment.amount !== SUBSCRIPTION_AMOUNT || !payment.id) {
     throw new PaymentMismatchError('Subscription payment does not match');
   }
+  // SQLite datetime and CURRENT_TIMESTAMP use the same UTC text format for expiry checks.
   const results = await env.DB.batch([
     env.DB.prepare(`
       INSERT INTO processed_payments (payment_id, user_id, payment_type)
@@ -428,6 +449,7 @@ async function creditSubscription(env, subscriptionId, payment) {
     `).bind(payment.id, subscription.user_id, subscription.user_id, subscriptionId, payment.id),
     env.DB.prepare(`
       UPDATE users SET subscription_requests = ?,
+        -- SQLite stores both these values in the same UTC text format.
         subscription_expires_at = datetime('now', '+30 days'),
         subscription_status = CASE
           WHEN subscription_status = 'cancelled' THEN 'cancelled'
@@ -555,6 +577,9 @@ async function cancelSubscription(env, user) {
 }
 
 async function handleWebhook(request, env) {
+  if (typeof env.RAZORPAY_WEBHOOK_SECRET !== 'string' || !env.RAZORPAY_WEBHOOK_SECRET.trim()) {
+    return json({ error: 'Webhook is not configured' }, 503);
+  }
   const rawBody = await request.text();
   const signature = request.headers.get('X-Razorpay-Signature') || '';
   const eventId = request.headers.get('X-Razorpay-Event-Id');
