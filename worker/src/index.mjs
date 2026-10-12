@@ -354,6 +354,17 @@ async function getSubscriptionPlan(env) {
   return winner.setting_value;
 }
 
+async function cancelUnclaimedSubscription(env, subscriptionId) {
+  try {
+    await razorpayRequest(env, `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, {
+      method: 'POST',
+      body: { cancel_at_cycle_end: 0 }
+    });
+  } catch (error) {
+    console.error('Unable to cancel unclaimed Razorpay subscription', error);
+  }
+}
+
 async function createMonthlySubscription(env, user) {
   const existing = await env.DB.prepare(`
     SELECT subscription_status, subscription_expires_at, current_subscription_id
@@ -370,27 +381,60 @@ async function createMonthlySubscription(env, user) {
        Date.parse(`${existing.subscription_expires_at.replace(' ', 'T')}Z`) > Date.now())) {
     return json({ error: 'An active subscription already exists for this account.' }, 409);
   }
-  const planId = await getSubscriptionPlan(env);
-  const subscription = await razorpayRequest(env, '/subscriptions', {
-    method: 'POST',
-    body: {
-      plan_id: planId,
-      total_count: SUBSCRIPTION_TOTAL_COUNT,
-      customer_notify: 1,
-      notes: { user_id: user.id }
+  const claimToken = crypto.randomUUID();
+  const claim = await env.DB.prepare(`
+    UPDATE users SET subscription_status = 'creating',
+      subscription_creation_started_at = CURRENT_TIMESTAMP,
+      subscription_creation_token = ?
+    WHERE user_id = ? AND (
+      subscription_status NOT IN ('active', 'created', 'creating')
+      OR (subscription_status = 'active' AND subscription_expires_at <= CURRENT_TIMESTAMP)
+      OR (subscription_status = 'creating' AND
+          subscription_creation_started_at < datetime('now', '-5 minutes'))
+      OR (subscription_status = 'created' AND current_subscription_id IS NULL)
+    )
+    RETURNING user_id
+  `).bind(claimToken, user.id).first();
+  if (!claim) return json({ error: 'Subscription setup is already in progress.' }, 409);
+
+  let subscription;
+  try {
+    const planId = await getSubscriptionPlan(env);
+    subscription = await razorpayRequest(env, '/subscriptions', {
+      method: 'POST',
+      body: {
+        plan_id: planId,
+        total_count: SUBSCRIPTION_TOTAL_COUNT,
+        customer_notify: 1,
+        notes: { user_id: user.id }
+      }
+    });
+    const results = await env.DB.batch([
+      env.DB.prepare(`
+        UPDATE users SET current_subscription_id = ?, subscription_status = 'created',
+          subscription_creation_started_at = NULL, subscription_creation_token = NULL
+        WHERE user_id = ? AND subscription_status = 'creating'
+          AND subscription_creation_token = ?
+      `).bind(subscription.id, user.id, claimToken),
+      env.DB.prepare(`
+        INSERT INTO subscriptions (subscription_id, user_id)
+        SELECT ?, ? WHERE changes() = 1
+      `).bind(subscription.id, user.id)
+    ]);
+    if (results[0]?.meta?.changes !== 1 || results[1]?.meta?.changes !== 1) {
+      await cancelUnclaimedSubscription(env, subscription.id);
+      return json({ error: 'Subscription setup expired. Please try again.' }, 409);
     }
-  });
-  await env.DB.prepare(`
-    INSERT INTO subscriptions (subscription_id, user_id)
-    VALUES (?, ?)
-  `).bind(subscription.id, user.id).run();
-  await env.DB.prepare(`
-    UPDATE users SET current_subscription_id = ?, subscription_status = 'created' WHERE user_id = ?
-  `).bind(subscription.id, user.id).run();
-  return json({
-    subscriptionId: subscription.id,
-    keyId: env.RAZORPAY_KEY_ID
-  });
+    return json({ subscriptionId: subscription.id, keyId: env.RAZORPAY_KEY_ID });
+  } catch (error) {
+    if (subscription?.id) await cancelUnclaimedSubscription(env, subscription.id);
+    await env.DB.prepare(`
+      UPDATE users SET subscription_status = 'inactive',
+        subscription_creation_started_at = NULL, subscription_creation_token = NULL
+      WHERE user_id = ? AND subscription_creation_token = ?
+    `).bind(user.id, claimToken).run();
+    throw error;
+  }
 }
 
 async function paymentDetails(env, paymentId) {
@@ -566,13 +610,15 @@ async function cancelSubscription(env, user) {
     method: 'POST',
     body: { cancel_at_cycle_end: 1 }
   });
-  await env.DB.prepare(`
-    UPDATE subscriptions SET status = 'cancelled' WHERE subscription_id = ? AND user_id = ?
-  `).bind(current.current_subscription_id, user.id).run();
-  await env.DB.prepare(`
-    UPDATE users SET subscription_status = 'cancelled' WHERE user_id = ?
-      AND current_subscription_id = ?
-  `).bind(user.id, current.current_subscription_id).run();
+  await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE subscriptions SET status = 'cancelled' WHERE subscription_id = ? AND user_id = ?
+    `).bind(current.current_subscription_id, user.id),
+    env.DB.prepare(`
+      UPDATE users SET subscription_status = 'cancelled' WHERE user_id = ?
+        AND current_subscription_id = ?
+    `).bind(user.id, current.current_subscription_id)
+  ]);
   return json({ account: await accountSummary(env, user.id) });
 }
 
@@ -693,6 +739,12 @@ async function handleGemini(request, env, user, url) {
       message: 'Your free requests and paid request balance are used up. Choose a plan to continue.'
     }, 429);
   }
+  let reservationReleased = false;
+  const refundReservation = async () => {
+    if (reservationReleased) return;
+    reservationReleased = true;
+    await refundUsage(env, reservation);
+  };
   let upstream;
   try {
     upstream = await fetch(`${GEMINI_BASE_URL}${url.pathname}`, {
@@ -704,18 +756,18 @@ async function handleGemini(request, env, user, url) {
       body
     });
   } catch {
-    await refundUsage(env, reservation);
+    await refundReservation();
     return json({ error: 'AI service temporarily unavailable' }, 502);
   }
   let responseBody;
   try {
     responseBody = await upstream.arrayBuffer();
   } catch {
-    await refundUsage(env, reservation);
+    await refundReservation();
     return json({ error: 'AI service temporarily unavailable' }, 502);
   }
   if (!upstream.ok) {
-    await refundUsage(env, reservation);
+    await refundReservation();
     return new Response(responseBody, {
       status: upstream.status,
       headers: {
@@ -743,7 +795,12 @@ async function handleGemini(request, env, user, url) {
   } catch (error) {
     console.error('Unable to refresh quota display', error);
   }
-  return new Response(responseBody, { status: upstream.status, headers: responseHeaders });
+  try {
+    return new Response(responseBody, { status: upstream.status, headers: responseHeaders });
+  } catch {
+    await refundReservation();
+    return json({ error: 'AI service temporarily unavailable' }, 502);
+  }
 }
 
 async function route(request, env) {

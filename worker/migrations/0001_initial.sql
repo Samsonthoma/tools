@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS users (
   subscription_expires_at TEXT,
   subscription_status TEXT NOT NULL DEFAULT 'inactive',
   current_subscription_id TEXT,
+  subscription_creation_started_at TEXT,
+  subscription_creation_token TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   profile_synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -20,6 +20,9 @@ class MemoryD1 {
     this.subscriptionExpiresAt = null;
     this.subscriptionStatus = 'inactive';
     this.currentSubscriptionId = null;
+    this.subscriptionCreationStartedAt = null;
+    this.subscriptionCreationToken = null;
+    this.appSettings = new Map();
     this.order = null;
     this.subscriptions = new Map();
     this.processedPayments = new Set();
@@ -28,10 +31,34 @@ class MemoryD1 {
 
   prepare(sql) {
     return {
+      first: async () => {
+        if (sql.includes('SELECT setting_value FROM app_settings')) {
+          const value = this.appSettings.get('razorpay_monthly_plan_id');
+          return value ? { setting_value: value } : null;
+        }
+        return null;
+      },
       bind: (...values) => ({
         sql,
         values,
         first: async () => {
+          if (sql.includes("UPDATE users SET subscription_status = 'creating'")) {
+            const [token, userId] = values;
+            const expired = this.subscriptionStatus === 'active' &&
+              this.subscriptionExpiresAt &&
+              Date.parse(`${this.subscriptionExpiresAt.replace(' ', 'T')}Z`) <= Date.now();
+            const staleCreation = this.subscriptionStatus === 'creating' &&
+              this.subscriptionCreationStartedAt &&
+              Date.parse(`${this.subscriptionCreationStartedAt.replace(' ', 'T')}Z`) < Date.now() - 5 * 60000;
+            const available = !['active', 'created', 'creating'].includes(this.subscriptionStatus) ||
+              expired || staleCreation ||
+              (this.subscriptionStatus === 'created' && !this.currentSubscriptionId);
+            if (!available) return null;
+            this.subscriptionStatus = 'creating';
+            this.subscriptionCreationStartedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            this.subscriptionCreationToken = token;
+            return { user_id: userId };
+          }
           if (sql.includes('UPDATE daily_usage SET request_count = request_count + 1')) {
             const limit = values[2];
             if (this.dailyCount >= limit) return null;
@@ -65,6 +92,13 @@ class MemoryD1 {
           if (sql.includes('SELECT request_count FROM daily_usage')) {
             return { request_count: this.dailyCount };
           }
+          if (sql.includes('SELECT setting_value FROM app_settings')) {
+            const value = this.appSettings.get('razorpay_monthly_plan_id');
+            return value ? { setting_value: value } : null;
+          }
+          if (sql.includes('SELECT current_subscription_id FROM users')) {
+            return { current_subscription_id: this.currentSubscriptionId };
+          }
           if (sql.includes('SELECT email, name, paid_requests')) {
             return {
               email: 'student@example.com',
@@ -93,6 +127,15 @@ class MemoryD1 {
             this.subscriptionRequests++;
           }
           if (sql.includes('UPDATE users SET paid_requests = paid_requests + 1')) this.paidRequests++;
+          if (sql.includes('INSERT OR IGNORE INTO app_settings')) {
+            this.appSettings.set('razorpay_monthly_plan_id', values[0]);
+          }
+          if (sql.includes("UPDATE users SET subscription_status = 'inactive'") &&
+              values[1] === this.subscriptionCreationToken) {
+            this.subscriptionStatus = 'inactive';
+            this.subscriptionCreationStartedAt = null;
+            this.subscriptionCreationToken = null;
+          }
           if (sql.includes('INSERT OR IGNORE INTO webhook_events')) {
             const changes = this.webhookEvents.has(values[0]) ? 0 : 1;
             if (changes) this.webhookEvents.set(values[0], 'processing');
@@ -124,7 +167,43 @@ class MemoryD1 {
     const results = [];
     for (const statement of statements) {
       const { sql, values } = statement;
-      if (sql.includes('INSERT OR IGNORE INTO processed_payments')) {
+      if (sql.includes("UPDATE users SET current_subscription_id = ?, subscription_status = 'created'")) {
+        if (this.subscriptionStatus === 'creating' && values[2] === this.subscriptionCreationToken) {
+          this.currentSubscriptionId = values[0];
+          this.subscriptionStatus = 'created';
+          this.subscriptionCreationStartedAt = null;
+          this.subscriptionCreationToken = null;
+          changes = 1;
+        } else {
+          changes = 0;
+        }
+      } else if (sql.includes('INSERT INTO subscriptions') && sql.includes('SELECT ?, ?')) {
+        if (changes === 1) {
+          this.subscriptions.set(values[0], {
+            subscription_id: values[0],
+            user_id: values[1],
+            status: 'created'
+          });
+          changes = 1;
+        } else {
+          changes = 0;
+        }
+      } else if (sql.includes("UPDATE subscriptions SET status = 'cancelled'")) {
+        const sub = this.subscriptions.get(values[0]);
+        if (sub?.user_id === values[1]) {
+          sub.status = 'cancelled';
+          changes = 1;
+        } else {
+          changes = 0;
+        }
+      } else if (sql.includes("UPDATE users SET subscription_status = 'cancelled'")) {
+        if (this.currentSubscriptionId === values[1]) {
+          this.subscriptionStatus = 'cancelled';
+          changes = 1;
+        } else {
+          changes = 0;
+        }
+      } else if (sql.includes('INSERT OR IGNORE INTO processed_payments')) {
         const paymentId = values[0];
         changes = this.processedPayments.has(paymentId) ? 0 : 1;
         this.processedPayments.add(paymentId);
@@ -462,6 +541,90 @@ test('reuses a pending subscription instead of blocking abandoned checkout', asy
 
   assert.equal(response.status, 200);
   assert.equal(result.subscriptionId, 'sub-pending-checkout');
+});
+
+test('does not create another subscription for an active account', async () => {
+  const database = new MemoryD1();
+  database.subscriptionStatus = 'active';
+  database.subscriptionExpiresAt = new Date(Date.now() + 30 * 86400000)
+    .toISOString().slice(0, 19).replace('T', ' ');
+  const response = await worker.fetch(new Request('https://worker.example/api/payments/subscription', {
+    method: 'POST',
+    headers: {
+      Origin: env.SITE_ORIGIN,
+      Authorization: 'Bearer ' + validGoogleToken
+    }
+  }), { ...env, DB: database });
+
+  assert.equal(response.status, 409);
+  assert.equal(database.subscriptionStatus, 'active');
+});
+
+test('serializes subscription creation to avoid duplicate Razorpay subscriptions', async () => {
+  const originalFetch = globalThis.fetch;
+  const database = new MemoryD1();
+  let subscriptionCreations = 0;
+  globalThis.fetch = async url => {
+    if (String(url).endsWith('/plans')) return Response.json({ id: 'plan-test' });
+    if (String(url).endsWith('/subscriptions')) {
+      subscriptionCreations++;
+      await new Promise(resolve => setTimeout(resolve, 5));
+      return Response.json({ id: 'sub-created-once' });
+    }
+    throw new Error(`Unexpected Razorpay URL ${url}`);
+  };
+  const request = () => new Request('https://worker.example/api/payments/subscription', {
+    method: 'POST',
+    headers: {
+      Origin: env.SITE_ORIGIN,
+      Authorization: 'Bearer ' + validGoogleToken
+    }
+  });
+  try {
+    const responses = await Promise.all([
+      worker.fetch(request(), { ...env, DB: database, RAZORPAY_KEY_SECRET: 'test-secret' }),
+      worker.fetch(request(), { ...env, DB: database, RAZORPAY_KEY_SECRET: 'test-secret' })
+    ]);
+    assert.deepEqual(responses.map(response => response.status).sort(), [200, 409]);
+    assert.equal(subscriptionCreations, 1);
+    assert.equal(database.currentSubscriptionId, 'sub-created-once');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('cancels subscription renewal and updates D1 atomically', async () => {
+  const originalFetch = globalThis.fetch;
+  const database = new MemoryD1();
+  database.currentSubscriptionId = 'sub-to-cancel';
+  database.subscriptionStatus = 'active';
+  database.subscriptions.set('sub-to-cancel', {
+    subscription_id: 'sub-to-cancel',
+    user_id: 'google-user-123',
+    status: 'active'
+  });
+  globalThis.fetch = async (url, options) => {
+    assert.equal(String(url), 'https://api.razorpay.com/v1/subscriptions/sub-to-cancel/cancel');
+    assert.equal(options.method, 'POST');
+    return Response.json({ id: 'sub-to-cancel', status: 'cancelled' });
+  };
+  try {
+    const response = await worker.fetch(new Request('https://worker.example/api/payments/cancel-subscription', {
+      method: 'POST',
+      headers: {
+        Origin: env.SITE_ORIGIN,
+        Authorization: 'Bearer ' + validGoogleToken
+      }
+    }), { ...env, DB: database, RAZORPAY_KEY_SECRET: 'test-secret' });
+    const result = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(result.account.subscriptionStatus, 'cancelled');
+    assert.equal(database.subscriptions.get('sub-to-cancel').status, 'cancelled');
+    assert.equal(database.subscriptionStatus, 'cancelled');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('acknowledges signed Razorpay webhooks with non-matching payment details', async () => {
