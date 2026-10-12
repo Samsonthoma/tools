@@ -94,7 +94,7 @@ async function verifyGoogleIdToken(token, clientId) {
 
 async function authenticate(request, env) {
   const authorization = request.headers.get('Authorization') || '';
-  const match = authorization.match(/^******;
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
   if (!match) return null;
   const user = await verifyGoogleIdToken(match[1], env.GOOGLE_CLIENT_ID);
   await env.DB.prepare(`
@@ -126,7 +126,7 @@ async function accountSummary(env, userId) {
       .bind(userId, today).first(),
     env.DB.prepare(`
       SELECT email, name, paid_requests, subscription_requests, subscription_expires_at,
-             subscription_status
+             subscription_status, current_subscription_id
       FROM users WHERE user_id = ?
     `).bind(userId).first()
   ]);
@@ -142,7 +142,8 @@ async function accountSummary(env, userId) {
     paidRequests: user.paid_requests,
     subscriptionRequests: subscriptionActive ? user.subscription_requests : 0,
     subscriptionExpiresAt: subscriptionActive ? user.subscription_expires_at : null,
-    subscriptionStatus: user.subscription_status
+    subscriptionStatus: user.subscription_status,
+    subscriptionId: user.current_subscription_id
   };
 }
 
@@ -293,6 +294,9 @@ async function createMonthlySubscription(env, user) {
     INSERT INTO subscriptions (subscription_id, user_id)
     VALUES (?, ?)
   `).bind(subscription.id, user.id).run();
+  await env.DB.prepare(`
+    UPDATE users SET current_subscription_id = ?, subscription_status = 'created' WHERE user_id = ?
+  `).bind(subscription.id, user.id).run();
   return json({
     subscriptionId: subscription.id,
     keyId: env.RAZORPAY_KEY_ID
@@ -388,6 +392,24 @@ async function verifySubscription(request, env, user) {
   const payment = await paymentDetails(env, paymentId);
   await creditSubscription(env, subscriptionId, payment);
   return json({ account: await accountSummary(env, user.id), paymentPending: payment.status !== 'captured' });
+}
+
+async function cancelSubscription(env, user) {
+  const current = await env.DB.prepare(`
+    SELECT current_subscription_id FROM users WHERE user_id = ?
+  `).bind(user.id).first();
+  if (!current?.current_subscription_id) return json({ error: 'No subscription to cancel' }, 404);
+  await razorpayRequest(env, `/subscriptions/${encodeURIComponent(current.current_subscription_id)}/cancel`, {
+    method: 'POST',
+    body: { cancel_at_cycle_end: 1 }
+  });
+  await env.DB.prepare(`
+    UPDATE subscriptions SET status = 'cancelled' WHERE subscription_id = ? AND user_id = ?
+  `).bind(current.current_subscription_id, user.id).run();
+  await env.DB.prepare(`
+    UPDATE users SET subscription_status = 'cancelled' WHERE user_id = ?
+  `).bind(user.id).run();
+  return json({ account: await accountSummary(env, user.id) });
 }
 
 async function handleWebhook(request, env) {
@@ -515,6 +537,9 @@ async function route(request, env) {
   }
   if (request.method === 'POST' && url.pathname === '/api/payments/verify-subscription') {
     return verifySubscription(request, env, user);
+  }
+  if (request.method === 'POST' && url.pathname === '/api/payments/cancel-subscription') {
+    return cancelSubscription(env, user);
   }
   if (request.method === 'POST' && url.pathname.startsWith('/v1beta/')) {
     return handleGemini(request, env, user, url);

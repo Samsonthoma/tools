@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   subscription_requests INTEGER NOT NULL DEFAULT 0 CHECK (subscription_requests >= 0),
   subscription_expires_at TEXT,
   subscription_status TEXT NOT NULL DEFAULT 'inactive',
+  current_subscription_id TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

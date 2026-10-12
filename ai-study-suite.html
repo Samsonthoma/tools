@@ -15,6 +15,8 @@
   <meta name="description" content="Note-taking guide and LLM learning suite to study smarter.">
     <link rel="canonical" href="https://tools.thesouthindianschool.in/ai-study-suite.html">
     <title>StudyCraft AI - Note-Taking Guide & LLM Learning Suite</title>
+  <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleAuth()"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   
   <!-- Tailwind CSS -->
   <script src="assets/site.js" defer></script>
@@ -114,6 +116,9 @@
 
       <!-- Action Tools & Theme Switcher -->
       <div class="flex items-center space-x-2 sm:space-x-3">
+        <button id="accountButton" onclick="openAccountModal()" class="px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/70">
+          Sign in
+        </button>
         <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Toggle Theme">
           <i class="fa-solid fa-moon dark:hidden text-lg"></i>
           <i class="fa-solid fa-sun hidden dark:block text-lg"></i>
@@ -156,6 +161,41 @@
       </div>
     </div>
   </header>
+
+  <div id="accountModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+    <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl text-slate-800 dark:text-slate-100">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 id="accountModalTitle" class="text-xl font-bold">StudyCraft AI account</h2>
+          <p id="accountIdentity" class="text-sm text-slate-500 dark:text-slate-400 mt-1">Sign in or create an account with Google.</p>
+        </div>
+        <button onclick="closeAccountModal()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" aria-label="Close">&times;</button>
+      </div>
+      <div id="googleSignInButton" class="mt-5"></div>
+      <div id="accountDetails" class="hidden mt-5 space-y-4">
+        <div class="rounded-xl bg-slate-50 dark:bg-slate-900 p-4 text-sm">
+          <p id="accountQuotaText" class="font-semibold"></p>
+          <p id="accountPaidText" class="mt-1 text-slate-600 dark:text-slate-300"></p>
+          <p id="accountSubscriptionText" class="mt-1 text-slate-600 dark:text-slate-300"></p>
+        </div>
+        <div class="space-y-2">
+          <button onclick="buyTopup()" class="w-full px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-left">
+            <span class="font-bold">₹49 — 50 extra AI requests</span>
+          </button>
+          <button onclick="buyMonthlySubscription()" class="w-full px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-left">
+            <span class="font-bold">₹199/month — 500 requests</span>
+            <span class="block text-xs opacity-90">Recurring monthly billing; each successful payment grants 30 days of access.</span>
+          </button>
+          <button id="cancelSubscriptionButton" onclick="cancelMonthlySubscription()" class="hidden w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm">
+            Cancel subscription renewal
+          </button>
+        </div>
+        <button onclick="signOutGoogle()" class="text-sm text-slate-500 underline">Sign out</button>
+      </div>
+      <p id="accountMessage" class="hidden mt-4 rounded-lg bg-amber-50 dark:bg-amber-900/30 p-3 text-sm text-amber-800 dark:text-amber-200"></p>
+      <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">Free usage: 7 requests per calendar day (IST). Failed AI requests are refunded. Payments are processed by Razorpay.</p>
+    </div>
+  </div>
 
   <!-- Main Container -->
   <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -775,6 +815,10 @@
   <!-- JavaScript Application Logic -->
   <script>
     const GEMINI_WORKER_URL = 'https://tools.samsonthomasminithomas.workers.dev';
+    let googleIdToken = '';
+    let googleClientId = '';
+    let accountInfo = null;
+    let googleAuthInitialized = false;
     let currentSelectedFormat = 'cornell';
     let currentMindMapData = null;
     let currentFlashcards = [];
@@ -783,31 +827,232 @@
     let mindMapPanX = 0;
     let mindMapPanY = 0;
 
-    // Helper: Exponential Backoff Fetch for Gemini API
-    async function callGemini(url, payload, retries = 3) {
-      let delay = 1000;
-      for (let i = 0; i < retries; i++) {
-        try {
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (!res.ok) {
-            if (res.status === 429 || res.status >= 500) {
-              if (i === retries - 1) throw new Error(`Gemini API Error HTTP ${res.status}`);
-              await new Promise(r => setTimeout(r, delay));
-              delay *= 2;
-              continue;
-            }
-            throw new Error(`Gemini API Error HTTP ${res.status}`);
+    function showAccountMessage(message) {
+      const element = document.getElementById('accountMessage');
+      element.textContent = message;
+      element.classList.remove('hidden');
+    }
+
+    function openAccountModal(message = '') {
+      document.getElementById('accountModal').classList.remove('hidden');
+      if (message) showAccountMessage(message);
+      if (googleAuthInitialized) renderGoogleSignInButton();
+    }
+
+    function closeAccountModal() {
+      document.getElementById('accountModal').classList.add('hidden');
+    }
+
+    function renderGoogleSignInButton() {
+      const target = document.getElementById('googleSignInButton');
+      if (!target || !window.google?.accounts?.id || !googleClientId || googleIdToken) return;
+      target.replaceChildren();
+      google.accounts.id.renderButton(target, {
+        theme: document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'rectangular',
+        width: Math.min(target.clientWidth || 320, 360)
+      });
+    }
+
+    async function loadWorkerConfig() {
+      try {
+        const response = await fetch(`${GEMINI_WORKER_URL}/api/config`);
+        if (!response.ok) throw new Error('Unable to load sign-in configuration');
+        const config = await response.json();
+        googleClientId = config.googleClientId;
+        if (window.google?.accounts?.id) initGoogleAuth();
+      } catch (error) {
+        showAccountMessage(error.message);
+      }
+    }
+
+    function initGoogleAuth() {
+      if (googleAuthInitialized || !googleClientId || !window.google?.accounts?.id) return;
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async response => {
+          googleIdToken = response.credential;
+          document.getElementById('googleSignInButton').classList.add('hidden');
+          try {
+            await refreshAccount();
+            document.getElementById('accountMessage').classList.add('hidden');
+          } catch (error) {
+            googleIdToken = '';
+            showAccountMessage(error.message);
+            document.getElementById('googleSignInButton').classList.remove('hidden');
           }
-          return await res.json();
-        } catch (err) {
-          if (i === retries - 1 || /^Gemini API Error HTTP 4/.test(err.message)) throw err;
-          await new Promise(r => setTimeout(r, delay));
-          delay *= 2;
         }
+      });
+      googleAuthInitialized = true;
+      renderGoogleSignInButton();
+    }
+
+    async function accountRequest(path, options = {}) {
+      if (!googleIdToken) {
+        openAccountModal('Sign in with Google before using AI or making a purchase.');
+        throw new Error('Sign in with Google to continue.');
+      }
+      const response = await fetch(`${GEMINI_WORKER_URL}${path}`, {
+        ...options,
+        headers: {
+          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+          Authorization: 'Bearer ' + googleIdToken,
+          ...options.headers
+        }
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) {
+          googleIdToken = '';
+          accountInfo = null;
+          updateAccountButton();
+          openAccountModal('Your sign-in expired. Please sign in again.');
+        }
+        throw new Error(result.message || result.error || `Request failed (${response.status})`);
+      }
+      return result;
+    }
+
+    function updateAccountButton() {
+      const button = document.getElementById('accountButton');
+      button.textContent = accountInfo ? `${accountInfo.freeRemaining} free left today` : 'Sign in';
+      document.getElementById('googleSignInButton').classList.toggle('hidden', Boolean(accountInfo));
+      document.getElementById('accountDetails').classList.toggle('hidden', !accountInfo);
+      document.getElementById('accountIdentity').textContent = accountInfo
+        ? `Signed in as ${accountInfo.email}`
+        : 'Sign in or create an account with Google.';
+      if (!accountInfo) return;
+      document.getElementById('accountQuotaText').textContent =
+        `${accountInfo.freeRemaining} of ${accountInfo.freeLimit} free requests remaining today (IST)`;
+      document.getElementById('accountPaidText').textContent =
+        `${accountInfo.paidRequests} top-up requests available`;
+      const hasSubscription = accountInfo.subscriptionExpiresAt &&
+        accountInfo.subscriptionRequests > 0;
+      document.getElementById('accountSubscriptionText').textContent = hasSubscription
+        ? `${accountInfo.subscriptionRequests} subscription requests available until ${accountInfo.subscriptionExpiresAt}`
+        : 'No active subscription requests.';
+      document.getElementById('cancelSubscriptionButton').classList.toggle(
+        'hidden',
+        !accountInfo.subscriptionId || ['cancelled', 'completed', 'inactive'].includes(accountInfo.subscriptionStatus)
+      );
+    }
+
+    async function refreshAccount() {
+      const result = await accountRequest('/api/me');
+      accountInfo = result.account;
+      updateAccountButton();
+    }
+
+    function signOutGoogle() {
+      googleIdToken = '';
+      accountInfo = null;
+      if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
+      updateAccountButton();
+      renderGoogleSignInButton();
+    }
+
+    async function openRazorpayCheckout(options, verifyPath, bodyFields) {
+      if (!window.Razorpay) throw new Error('Razorpay Checkout could not be loaded.');
+      const checkout = new Razorpay({
+        ...options,
+        handler: async response => {
+          try {
+            const body = Object.fromEntries(bodyFields.map(field => [field, response[field]]));
+            const result = await accountRequest(verifyPath, {
+              method: 'POST',
+              body: JSON.stringify(body)
+            });
+            accountInfo = result.account;
+            updateAccountButton();
+            showAccountMessage('Payment verified. Your account quota has been updated.');
+          } catch (error) {
+            showAccountMessage(`Payment received but could not be verified yet: ${error.message}`);
+          }
+        },
+        modal: {
+          ondismiss: () => refreshAccount().catch(() => {})
+        }
+      });
+      checkout.on('payment.failed', response => {
+        showAccountMessage(response.error?.description || 'Payment failed. You have not been charged for an unsuccessful payment.');
+      });
+      checkout.open();
+    }
+
+    async function buyTopup() {
+      try {
+        const order = await accountRequest('/api/payments/order', { method: 'POST' });
+        await openRazorpayCheckout({
+          key: order.keyId,
+          order_id: order.orderId,
+          amount: order.amount,
+          currency: order.currency,
+          name: 'StudyCraft AI',
+          description: '50 AI requests',
+          prefill: { email: accountInfo.email },
+          theme: { color: '#4f46e5' }
+        }, '/api/payments/verify-topup', ['razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature']);
+      } catch (error) {
+        showAccountMessage(error.message);
+      }
+    }
+
+    async function buyMonthlySubscription() {
+      try {
+        const subscription = await accountRequest('/api/payments/subscription', { method: 'POST' });
+        await openRazorpayCheckout({
+          key: subscription.keyId,
+          subscription_id: subscription.subscriptionId,
+          name: 'StudyCraft AI',
+          description: '500 AI requests per monthly billing cycle',
+          prefill: { email: accountInfo.email },
+          theme: { color: '#7c3aed' }
+        }, '/api/payments/verify-subscription', ['razorpay_subscription_id', 'razorpay_payment_id', 'razorpay_signature']);
+      } catch (error) {
+        showAccountMessage(error.message);
+      }
+    }
+
+    async function cancelMonthlySubscription() {
+      if (!confirm('Cancel your subscription renewal? Your current paid access remains available until it expires.')) return;
+      try {
+        const result = await accountRequest('/api/payments/cancel-subscription', { method: 'POST' });
+        accountInfo = result.account;
+        updateAccountButton();
+        showAccountMessage('Subscription renewal cancelled.');
+      } catch (error) {
+        showAccountMessage(error.message);
+      }
+    }
+
+    async function callGemini(url, payload) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(googleIdToken ? { Authorization: 'Bearer ' + googleIdToken } : {})
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}));
+          const message = result.message || result.error || `AI request failed (HTTP ${response.status})`;
+          if (response.status === 401) openAccountModal(message);
+          if (response.status === 429) openAccountModal(message);
+          throw new Error(message);
+        }
+        const quota = response.headers.get('X-Quota-Status');
+        if (quota) {
+          accountInfo = JSON.parse(quota);
+          updateAccountButton();
+        }
+        return await response.json();
+      } catch (error) {
+        if (!googleIdToken) openAccountModal('Sign in with Google before using AI.');
+        throw error;
       }
     }
 
@@ -1269,6 +1514,7 @@
 
     // Initialize Canvas on load
     window.onload = function() {
+      loadWorkerConfig();
       renderMindMapCanvas();
       window.addEventListener('resize', renderMindMapCanvas);
     };
