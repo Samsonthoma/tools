@@ -90,10 +90,21 @@ class MemoryD1 {
         changes = this.processedPayments.has(paymentId) ? 0 : 1;
         this.processedPayments.add(paymentId);
       } else if (sql.includes('UPDATE payment_orders SET status')) {
-        if (changes === 1 && this.order?.status === 'created' &&
-            this.order.user_id === values[2]) {
+        if (this.order?.status === 'created' && this.order.user_id === values[2] &&
+            !this.processedPayments.has(values[3])) {
           this.order.status = 'paid';
           this.order.payment_id = values[0];
+          changes = 1;
+        } else {
+          changes = 0;
+        }
+      } else if (sql.includes('INSERT INTO processed_payments')) {
+        const subscriptionCharge = sql.includes('current_subscription_id');
+        if (!this.processedPayments.has(values[0]) &&
+            (subscriptionCharge
+              ? this.currentSubscriptionId === values[3]
+              : changes === 1)) {
+          this.processedPayments.add(values[0]);
           changes = 1;
         } else {
           changes = 0;
@@ -106,7 +117,7 @@ class MemoryD1 {
           this.subscriptionRequests = values[0];
           this.subscriptionExpiresAt = new Date(Date.now() + 30 * 86400000)
             .toISOString().slice(0, 19).replace('T', ' ');
-          this.subscriptionStatus = 'active';
+          if (this.subscriptionStatus !== 'cancelled') this.subscriptionStatus = 'active';
           changes = 1;
         } else {
           changes = 0;
@@ -291,6 +302,9 @@ test('credits Razorpay top-ups once even when verification and webhook race', as
   assert.equal(await creditTopup({ DB: database }, 'order-1', payment), true);
   assert.equal(await creditTopup({ DB: database }, 'order-1', payment), false);
   assert.equal(database.paidRequests, 50);
+  await creditTopup({ DB: database }, 'order-1', { ...payment, id: 'pay-another' });
+  assert.equal(database.processedPayments.has('pay-another'), false);
+  assert.equal(database.paidRequests, 50);
 });
 
 test('only credits the currently selected subscription', async () => {
@@ -315,6 +329,28 @@ test('only credits the currently selected subscription', async () => {
     subscription_id: 'sub-old'
   }), false);
   assert.equal(database.subscriptionStatus, 'active');
+});
+
+test('a final subscription charge does not undo scheduled cancellation', async () => {
+  const database = new MemoryD1();
+  database.currentSubscriptionId = 'sub-cancelled';
+  database.subscriptionStatus = 'cancelled';
+  database.subscriptions.set('sub-cancelled', {
+    user_id: 'user-1',
+    subscription_id: 'sub-cancelled',
+    status: 'cancelled'
+  });
+  const credited = await creditSubscription({ DB: database }, 'sub-cancelled', {
+    id: 'pay-final-cycle',
+    subscription_id: 'sub-cancelled',
+    amount: 19900,
+    currency: 'INR',
+    status: 'captured'
+  });
+
+  assert.equal(credited, true);
+  assert.equal(database.subscriptionRequests, 500);
+  assert.equal(database.subscriptionStatus, 'cancelled');
 });
 
 test('acknowledges signed Razorpay webhooks with non-matching payment details', async () => {

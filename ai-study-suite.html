@@ -1108,8 +1108,12 @@
       }
       const quota = response.headers.get('X-Quota-Status');
       if (quota) {
-        accountInfo = { ...accountInfo, ...JSON.parse(quota) };
-        updateAccountButton();
+        try {
+          accountInfo = { ...accountInfo, ...JSON.parse(quota) };
+          updateAccountButton();
+        } catch {
+          // Ignore malformed optional metadata; the AI response is still valid.
+        }
       }
       return await response.json();
     }

@@ -106,9 +106,10 @@ async function verifyGoogleIdToken(token, clientId) {
   const validAudience = Array.isArray(claims.aud)
     ? claims.aud.includes(clientId)
     : claims.aud === clientId;
-  if (!validSignature || !validIssuer || !validAudience || !claims.sub ||
+  if (!Number.isFinite(claims.exp) || !Number.isFinite(claims.iat) ||
+      !validSignature || !validIssuer || !validAudience || !claims.sub ||
       !claims.email || claims.email_verified !== true || claims.exp <= now ||
-      claims.iat > now + 60 || !Number.isFinite(claims.exp) || !Number.isFinite(claims.iat)) {
+      claims.iat > now + 60) {
     throw new InvalidGoogleTokenError('Google sign-in token is invalid or expired');
   }
   return { id: claims.sub, email: claims.email, name: claims.name || '' };
@@ -208,7 +209,7 @@ async function readLimitedBody(request, limit) {
     totalBytes += value.byteLength;
     if (totalBytes > limit) {
       await reader.cancel();
-      return null;
+      return { tooLarge: true };
     }
     chunks.push(value);
   }
@@ -218,7 +219,7 @@ async function readLimitedBody(request, limit) {
     body.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return body.buffer;
+  return { body: body.buffer, tooLarge: false };
 }
 
 async function refundUsage(env, reservation) {
@@ -372,13 +373,14 @@ async function creditTopup(env, orderId, payment) {
   }
   const results = await env.DB.batch([
     env.DB.prepare(`
-      INSERT OR IGNORE INTO processed_payments (payment_id, user_id, payment_type)
-      VALUES (?, ?, 'topup')
-    `).bind(payment.id, order.user_id),
-    env.DB.prepare(`
       UPDATE payment_orders SET status = 'paid', payment_id = ?
-      WHERE order_id = ? AND user_id = ? AND status = 'created' AND changes() = 1
-    `).bind(payment.id, orderId, order.user_id),
+      WHERE order_id = ? AND user_id = ? AND status = 'created'
+        AND NOT EXISTS (SELECT 1 FROM processed_payments WHERE payment_id = ?)
+    `).bind(payment.id, orderId, order.user_id, payment.id),
+    env.DB.prepare(`
+      INSERT INTO processed_payments (payment_id, user_id, payment_type)
+      SELECT ?, ?, 'topup' WHERE changes() = 1
+    `).bind(payment.id, order.user_id),
     env.DB.prepare(`
       UPDATE users SET paid_requests = paid_requests + ?
       WHERE user_id = ? AND changes() = 1
@@ -398,17 +400,29 @@ async function creditSubscription(env, subscriptionId, payment) {
   }
   const results = await env.DB.batch([
     env.DB.prepare(`
-      INSERT OR IGNORE INTO processed_payments (payment_id, user_id, payment_type)
-      VALUES (?, ?, 'subscription')
-    `).bind(payment.id, subscription.user_id),
+      INSERT INTO processed_payments (payment_id, user_id, payment_type)
+      SELECT ?, ?, 'subscription'
+      WHERE EXISTS (
+        SELECT 1 FROM users WHERE user_id = ? AND current_subscription_id = ?
+      ) AND NOT EXISTS (
+        SELECT 1 FROM processed_payments WHERE payment_id = ?
+      )
+    `).bind(payment.id, subscription.user_id, subscription.user_id, subscriptionId, payment.id),
     env.DB.prepare(`
       UPDATE users SET subscription_requests = ?,
         subscription_expires_at = datetime('now', '+30 days'),
-        subscription_status = 'active'
+        subscription_status = CASE
+          WHEN subscription_status = 'cancelled' THEN 'cancelled'
+          ELSE 'active'
+        END
       WHERE user_id = ? AND current_subscription_id = ? AND changes() = 1
     `).bind(SUBSCRIPTION_REQUESTS, subscription.user_id, subscriptionId),
     env.DB.prepare(`
-      UPDATE subscriptions SET status = 'active' WHERE subscription_id = ?
+      UPDATE subscriptions SET status = CASE
+          WHEN status = 'cancelled' THEN 'cancelled'
+          ELSE 'active'
+        END
+      WHERE subscription_id = ?
         AND changes() = 1
     `).bind(subscriptionId)
   ]);
@@ -416,7 +430,15 @@ async function creditSubscription(env, subscriptionId, payment) {
 }
 
 async function verifyTopup(request, env, user) {
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'Invalid JSON request' }, 400);
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return json({ error: 'Invalid payment details' }, 400);
+  }
   const { orderId, paymentId, signature } = body;
   if (![orderId, paymentId, signature].every(value => typeof value === 'string' && value.length < 256)) {
     return json({ error: 'Invalid payment details' }, 400);
@@ -451,7 +473,15 @@ async function verifyTopup(request, env, user) {
 }
 
 async function verifySubscription(request, env, user) {
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'Invalid JSON request' }, 400);
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return json({ error: 'Invalid subscription payment details' }, 400);
+  }
   const { subscriptionId, paymentId, signature } = body;
   if (![subscriptionId, paymentId, signature].every(value => typeof value === 'string' && value.length < 256)) {
     return json({ error: 'Invalid subscription payment details' }, 400);
@@ -581,8 +611,9 @@ async function handleGemini(request, env, user, url) {
   if (!match || !ALLOWED_MODELS.has(match[1])) return json({ error: 'Unsupported AI model' }, 404);
   const length = Number(request.headers.get('Content-Length') || 0);
   if (length > MAX_BODY_SIZE) return json({ error: 'Request too large' }, 413);
-  const body = await readLimitedBody(request, MAX_BODY_SIZE);
-  if (!body) return json({ error: 'Request too large' }, 413);
+  const bodyResult = await readLimitedBody(request, MAX_BODY_SIZE);
+  if (bodyResult.tooLarge) return json({ error: 'Request too large' }, 413);
+  const body = bodyResult.body;
   try {
     JSON.parse(new TextDecoder().decode(body));
   } catch {
