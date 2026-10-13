@@ -40,14 +40,49 @@
 
     var f = document.createElement('footer');
     f.className = 'sis-footer';
-    f.innerHTML = '&copy; <a href="' + S.school.url + '" target="_blank" rel="noopener">' + esc(S.school.name) + '</a> &middot; Developed by <a href="' + S.developer.url + '" target="_blank" rel="noopener author">' + esc(S.developer.name) + '</a>' +
-      '<div class="sis-footer-links">' +
-      '<a href="' + base + 'terms.html">Terms and Conditions</a> &middot; ' +
-      '<a href="' + base + 'privacy.html">Privacy Policy</a> &middot; ' +
-      '<a href="' + base + 'cancellation-and-refund.html">Cancellation and Refund</a> &middot; ' +
-      '<a href="' + base + 'shipping-and-exchange.html">Shipping and Exchange</a> &middot; ' +
-      '<a href="' + base + 'contact-us.html">Contact Us</a>' +
-      '</div>';
+
+    var copySpan = document.createElement('span');
+    copySpan.innerHTML = '&copy; ';
+    f.appendChild(copySpan);
+
+    var schoolLink = document.createElement('a');
+    schoolLink.href = S.school.url;
+    schoolLink.target = '_blank';
+    schoolLink.rel = 'noopener';
+    schoolLink.textContent = S.school.name;
+    f.appendChild(schoolLink);
+
+    f.appendChild(document.createTextNode(' · Developed by '));
+
+    var devLink = document.createElement('a');
+    devLink.href = S.developer.url;
+    devLink.target = '_blank';
+    devLink.rel = 'noopener author';
+    devLink.textContent = S.developer.name;
+    f.appendChild(devLink);
+
+    var linksDiv = document.createElement('div');
+    linksDiv.className = 'sis-footer-links';
+
+    var complianceLinks = [
+      { text: 'Terms and Conditions', href: base + 'terms.html' },
+      { text: 'Privacy Policy', href: base + 'privacy.html' },
+      { text: 'Cancellation and Refund', href: base + 'cancellation-and-refund.html' },
+      { text: 'Shipping and Exchange', href: base + 'shipping-and-exchange.html' },
+      { text: 'Contact Us', href: base + 'contact-us.html' }
+    ];
+
+    complianceLinks.forEach(function (linkItem, idx) {
+      if (idx > 0) {
+        linksDiv.appendChild(document.createTextNode(' · '));
+      }
+      var a = document.createElement('a');
+      a.href = linkItem.href;
+      a.textContent = linkItem.text;
+      linksDiv.appendChild(a);
+    });
+
+    f.appendChild(linksDiv);
     document.body.appendChild(f);
 
     var grid = document.getElementById('tools-grid');
