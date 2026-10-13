@@ -1,6 +1,6 @@
 :root { --sis-h: 56px; }
 .sis-nav, .sis-nav * { box-sizing: border-box; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
-.sis-nav { position: sticky; top: 0; z-index: 10000; height: var(--sis-h); background: rgba(255,255,255,.96); backdrop-filter: blur(8px); box-shadow: 0 1px 4px rgba(0,0,0,.12); color: #475569; }
+.sis-nav { position: sticky; top: 0; z-index: 1000; height: var(--sis-h); background: rgba(255,255,255,.96); backdrop-filter: blur(8px); box-shadow: 0 1px 4px rgba(0,0,0,.12); color: #475569; }
 .sis-nav-inner { max-width: 1200px; height: 100%; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; }
 .sis-brand { font-weight: 700; font-size: 18px; color: #0f172a; text-decoration: none; }
 .sis-toggle { display: none; background: none; border: 0; padding: 8px; cursor: pointer; color: #334155; }
@@ -32,6 +32,18 @@
 .sis-card p { margin: 0; color: #64748b; font-size: 14px; line-height: 1.5; }
 
 .sis-auth { display: flex; align-items: center; gap: 8px; margin-left: 6px; font-size: 13px; }
-.sis-user { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sis-signout { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 6px 10px; cursor: pointer; color: #475569; }
-.sis-footer a[href$="privacy.html"], .sis-footer a[href$="terms.html"] { margin: 0 2px; }
+.sis-user { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.sis-signout { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 6px 10px; cursor: pointer; color: #475569; font-size: 12px; font-weight: 500; }
+.sis-signout:hover { background: #f1f5f9; color: #0f172a; }
+.sis-footer-links { margin-top: 10px; font-size: 13px; line-height: 1.8; }
+.sis-footer-links a { margin: 0 4px; color: #475569; }
+.sis-footer-links a:hover { color: #2563eb; }
+
+/* Ensure Razorpay checkout popup always sits cleanly on top of all site navigation */
+.razorpay-container {
+  z-index: 2147483647 !important;
+  position: fixed !important;
+}
+.razorpay-backdrop {
+  z-index: 2147483646 !important;
+}

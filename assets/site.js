@@ -40,7 +40,14 @@
 
     var f = document.createElement('footer');
     f.className = 'sis-footer';
-    f.innerHTML = '&copy; <a href="' + S.school.url + '" target="_blank" rel="noopener">' + esc(S.school.name) + '</a> &middot; Developed by <a href="' + S.developer.url + '" target="_blank" rel="noopener author">' + esc(S.developer.name) + '</a> &middot; <a href="' + base + 'privacy.html">Privacy Policy</a> &middot; <a href="' + base + 'terms.html">Terms of Service</a>';
+    f.innerHTML = '&copy; <a href="' + S.school.url + '" target="_blank" rel="noopener">' + esc(S.school.name) + '</a> &middot; Developed by <a href="' + S.developer.url + '" target="_blank" rel="noopener author">' + esc(S.developer.name) + '</a>' +
+      '<div class="sis-footer-links">' +
+      '<a href="' + base + 'terms.html">Terms and Conditions</a> &middot; ' +
+      '<a href="' + base + 'privacy.html">Privacy Policy</a> &middot; ' +
+      '<a href="' + base + 'cancellation-and-refund.html">Cancellation and Refund</a> &middot; ' +
+      '<a href="' + base + 'shipping-and-exchange.html">Shipping and Exchange</a> &middot; ' +
+      '<a href="' + base + 'contact-us.html">Contact Us</a>' +
+      '</div>';
     document.body.appendChild(f);
 
     var grid = document.getElementById('tools-grid');
@@ -60,14 +67,15 @@
   }
   var Auth = window.TSISAuth = {
     getToken: function () {
-      var t = null; try { t = sessionStorage.getItem(KEY); } catch (e) {}
+      var t = null;
+      try { t = localStorage.getItem(KEY) || sessionStorage.getItem(KEY); } catch (e) {}
       var p = t && parseJwt(t);
       if (!p || p.exp * 1000 < Date.now()) { if (t) Auth.signOut(); return null; }
       return t;
     },
     getUser: function () { var t = Auth.getToken(); return t ? parseJwt(t) : null; },
     signOut: function () {
-      try { sessionStorage.removeItem(KEY); } catch (e) {}
+      try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {}
       if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
       window.dispatchEvent(new Event('tsis-auth'));
     }
@@ -93,7 +101,10 @@
     function init() {
       if (inited || !clientId || !(window.google && google.accounts && google.accounts.id)) return;
       google.accounts.id.initialize({ client_id: clientId, callback: function (r) {
-        try { sessionStorage.setItem(KEY, r.credential); } catch (e) {}
+        try {
+          localStorage.setItem(KEY, r.credential);
+          sessionStorage.setItem(KEY, r.credential);
+        } catch (e) {}
         window.dispatchEvent(new Event('tsis-auth'));
       } });
       inited = true; render();

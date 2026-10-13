@@ -15,10 +15,9 @@
   <meta name="description" content="Note-taking guide and LLM learning suite to study smarter.">
     <link rel="canonical" href="https://tools.thesouthindianschool.in/ai-study-suite.html">
     <title>StudyCraft AI - Note-Taking Guide & LLM Learning Suite</title>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
   
-  <!-- Tailwind CSS -->
+  <!-- Tailwind CSS & Site Utilities -->
   <script src="assets/site.js" defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
@@ -116,8 +115,9 @@
 
       <!-- Action Tools & Theme Switcher -->
       <div class="flex items-center space-x-2 sm:space-x-3">
-        <button id="accountButton" onclick="openAccountModal()" class="px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/70">
-          Sign in
+        <button id="accountButton" onclick="openAccountModal()" class="px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/70 transition flex items-center space-x-1.5" title="View AI Plans &amp; Quota">
+          <i class="fa-solid fa-sparkles text-indigo-500"></i>
+          <span>Plans &amp; Quota</span>
         </button>
         <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Toggle Theme">
           <i class="fa-solid fa-moon dark:hidden text-lg"></i>
@@ -162,45 +162,72 @@
     </div>
   </header>
 
-  <div id="accountModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
-    <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl text-slate-800 dark:text-slate-100">
+  <div id="accountModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+    <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-2xl text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h2 id="accountModalTitle" class="text-xl font-bold">StudyCraft AI account</h2>
-          <p id="accountIdentity" class="text-sm text-slate-500 dark:text-slate-400 mt-1">Sign in or create an account with Google.</p>
+          <h2 id="accountModalTitle" class="text-xl font-bold flex items-center space-x-2">
+            <i class="fa-solid fa-user-circle text-indigo-600 dark:text-indigo-400"></i>
+            <span>StudyCraft AI Plans &amp; Quota</span>
+          </h2>
+          <p id="accountIdentity" class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Sign in using the navigation bar.</p>
         </div>
-        <button onclick="closeAccountModal()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" aria-label="Close">&times;</button>
+        <button onclick="closeAccountModal()" class="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700" aria-label="Close">&times;</button>
       </div>
-      <div id="googleSignInButton" class="mt-5"></div>
+
+      <div id="accountSignedOutNotice" class="mt-5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 p-4 text-center space-y-2">
+        <div class="w-10 h-10 mx-auto rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
+          <i class="fa-solid fa-arrow-up"></i>
+        </div>
+        <p class="font-semibold text-slate-800 dark:text-slate-200 text-sm">Sign In via Navigation Bar</p>
+        <p class="text-xs text-slate-600 dark:text-slate-400">Please click the Google Sign-In button located in the top navigation bar to access your AI requests and manage plans.</p>
+      </div>
+
       <div id="accountDetails" class="hidden mt-5 space-y-4">
-        <div class="rounded-xl bg-slate-50 dark:bg-slate-900 p-4 text-sm">
-          <p id="accountQuotaText" class="font-semibold"></p>
+        <div class="rounded-xl bg-slate-50 dark:bg-slate-900 p-4 text-xs sm:text-sm border border-slate-200 dark:border-slate-700/60">
+          <p id="accountQuotaText" class="font-semibold text-indigo-600 dark:text-indigo-400"></p>
           <p id="accountPaidText" class="mt-1 text-slate-600 dark:text-slate-300"></p>
           <p id="accountSubscriptionText" class="mt-1 text-slate-600 dark:text-slate-300"></p>
         </div>
-        <div class="space-y-2">
-          <button onclick="buyTopup()" class="w-full px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-left">
-            <span class="font-bold">₹49 — 50 extra AI requests</span>
-          </button>
-          <button onclick="buyMonthlySubscription()" class="w-full px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-left">
-            <span class="font-bold">₹199/month — 500 requests</span>
-            <span class="block text-xs opacity-90">Recurring monthly billing; each successful payment grants 30 days of access.</span>
-          </button>
-          <button id="cancelSubscriptionButton" onclick="showCancelSubscriptionConfirmation()" class="hidden w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm">
-            Cancel subscription renewal
-          </button>
-          <div id="cancelSubscriptionConfirmation" class="hidden rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3">
-            <p class="text-sm">Cancel renewal? Your existing subscription requests remain available until they expire.</p>
-            <div class="mt-3 flex justify-end gap-2">
-              <button onclick="hideCancelSubscriptionConfirmation()" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm">Keep it</button>
-              <button onclick="cancelMonthlySubscription()" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm">Confirm cancellation</button>
-            </div>
+        <button onclick="signOutGoogle()" class="text-xs text-red-500 hover:text-red-700 font-medium flex items-center space-x-1">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          <span>Sign out</span>
+        </button>
+      </div>
+
+      <div class="mt-5 space-y-3">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Upgrade Plans</h3>
+        <button onclick="buyTopup()" class="w-full p-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white shadow-md transition transform active:scale-95 text-left">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-sm sm:text-base">50 Extra Requests</span>
+            <span class="text-xs sm:text-sm font-extrabold bg-white/20 px-2.5 py-1 rounded-full">₹49</span>
+          </div>
+          <span class="block text-xs opacity-90 mt-1">One-time top-up; requests never expire and activate instantly.</span>
+        </button>
+
+        <button onclick="buyMonthlySubscription()" class="w-full p-4 rounded-xl bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md transition transform active:scale-95 text-left">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-sm sm:text-base">Monthly Pro Subscription</span>
+            <span class="text-xs sm:text-sm font-extrabold bg-white/20 px-2.5 py-1 rounded-full">₹199 / month</span>
+          </div>
+          <span class="block text-xs opacity-90 mt-1">500 requests per 30-day billing cycle. Automatic renewal; cancel anytime.</span>
+        </button>
+
+        <button id="cancelSubscriptionButton" onclick="showCancelSubscriptionConfirmation()" class="hidden w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+          Cancel subscription renewal
+        </button>
+
+        <div id="cancelSubscriptionConfirmation" class="hidden rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3">
+          <p class="text-xs text-amber-900 dark:text-amber-200">Cancel renewal? Your remaining subscription requests stay active until the 30 days end.</p>
+          <div class="mt-3 flex justify-end gap-2">
+            <button onclick="hideCancelSubscriptionConfirmation()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs">Keep it</button>
+            <button onclick="cancelMonthlySubscription()" class="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold">Confirm cancellation</button>
           </div>
         </div>
-        <button onclick="signOutGoogle()" class="text-sm text-slate-500 underline">Sign out</button>
       </div>
-      <p id="accountMessage" class="hidden mt-4 rounded-lg bg-amber-50 dark:bg-amber-900/30 p-3 text-sm text-amber-800 dark:text-amber-200"></p>
-      <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">Free usage: 7 requests per calendar day (IST). Failed AI requests are refunded. Payments are processed by Razorpay.</p>
+
+      <p id="accountMessage" class="hidden mt-4 rounded-xl bg-indigo-50 dark:bg-slate-900 border border-indigo-100 dark:border-slate-700 p-3 text-xs text-indigo-900 dark:text-indigo-200"></p>
+      <p class="mt-4 text-[11px] text-slate-500 dark:text-slate-400 text-center">Free usage: 7 requests daily (IST). All payments secured by Razorpay.</p>
     </div>
   </div>
 
@@ -823,11 +850,7 @@
   <script>
     const WORKER_API_URL = 'https://tsis-ai-backend.samsonthomasminithomas.workers.dev';
     let googleIdToken = '';
-    let googleClientId = '';
     let accountInfo = null;
-    let googleAuthInitialized = false;
-    let googleReauthPromise = null;
-    let resolveGoogleReauth = null;
     let currentSelectedFormat = 'cornell';
     let currentMindMapData = null;
     let currentFlashcards = [];
@@ -838,94 +861,67 @@
 
     function showAccountMessage(message) {
       const element = document.getElementById('accountMessage');
+      if (!message) {
+        element.textContent = '';
+        element.classList.add('hidden');
+        return;
+      }
       element.textContent = message;
       element.classList.remove('hidden');
     }
 
     function openAccountModal(message = '') {
       document.getElementById('accountModal').classList.remove('hidden');
-      if (message) showAccountMessage(message);
-      if (googleAuthInitialized) renderGoogleSignInButton();
+      showAccountMessage(message);
     }
 
     function closeAccountModal() {
       document.getElementById('accountModal').classList.add('hidden');
+      showAccountMessage('');
+      hideCancelSubscriptionConfirmation();
     }
 
-    function renderGoogleSignInButton() {
-      const target = document.getElementById('googleSignInButton');
-      if (!target || !window.google?.accounts?.id || !googleClientId || googleIdToken) return;
-      target.replaceChildren();
-      google.accounts.id.renderButton(target, {
-        theme: document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline',
-        size: 'large',
-        text: 'continue_with',
-        shape: 'rectangular',
-        width: Math.min(target.clientWidth || 320, 360)
-      });
+    function syncAuth() {
+      var token = null;
+      if (window.TSISAuth && typeof window.TSISAuth.getToken === 'function') {
+        token = window.TSISAuth.getToken();
+      }
+      if (!token) {
+        try {
+          token = localStorage.getItem('tsis_google_id_token') || sessionStorage.getItem('tsis_google_id_token');
+        } catch (e) {}
+      }
+      if (token) {
+        if (googleIdToken !== token || !accountInfo) {
+          googleIdToken = token;
+          refreshAccount().catch(() => {});
+        }
+      } else {
+        googleIdToken = '';
+        accountInfo = null;
+        updateAccountButton();
+      }
     }
+    window.addEventListener('tsis-auth', syncAuth);
 
-    async function loadWorkerConfig() {
-      try {
-        const response = await fetch(`${WORKER_API_URL}/api/config`);
-        if (!response.ok) throw new Error('Unable to load sign-in configuration');
-        const config = await response.json();
-        googleClientId = config.googleClientId;
-        if (window.google?.accounts?.id) initGoogleAuth();
-      } catch (error) {
-        showAccountMessage(error.message);
+    function signOutGoogle() {
+      if (window.TSISAuth && typeof window.TSISAuth.signOut === 'function') {
+        window.TSISAuth.signOut();
+      } else {
+        try {
+          localStorage.removeItem('tsis_google_id_token');
+          sessionStorage.removeItem('tsis_google_id_token');
+        } catch (e) {}
+        googleIdToken = '';
+        accountInfo = null;
+        updateAccountButton();
       }
     }
 
-    function initGoogleAuth() {
-      if (googleAuthInitialized || !googleClientId || !window.google?.accounts?.id) return;
-      google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: async response => {
-          googleIdToken = response.credential;
-          document.getElementById('googleSignInButton').classList.add('hidden');
-          try {
-            await refreshAccount();
-            document.getElementById('accountMessage').classList.add('hidden');
-            if (resolveGoogleReauth) resolveGoogleReauth(true);
-          } catch (error) {
-            googleIdToken = '';
-            showAccountMessage(error.message);
-            document.getElementById('googleSignInButton').classList.remove('hidden');
-            if (resolveGoogleReauth) resolveGoogleReauth(false);
-          }
-        }
-      });
-      googleAuthInitialized = true;
-      renderGoogleSignInButton();
-    }
-
-    function promptGoogleReauthentication() {
-      if (googleReauthPromise) return googleReauthPromise;
-      if (!googleAuthInitialized) return Promise.resolve(false);
-      googleReauthPromise = new Promise(resolve => {
-        const timeout = setTimeout(() => resolveGoogleReauth?.(false), 30000);
-        const finish = success => {
-          clearTimeout(timeout);
-          if (resolveGoogleReauth === finish) resolveGoogleReauth = null;
-          resolve(success);
-        };
-        resolveGoogleReauth = finish;
-        try {
-          google.accounts.id.prompt();
-        } catch {
-          resolveGoogleReauth(false);
-        }
-      }).finally(() => {
-        googleReauthPromise = null;
-      });
-      return googleReauthPromise;
-    }
-
-    async function accountRequest(path, options = {}, retriedAfterAuth = false) {
+    async function accountRequest(path, options = {}) {
       if (!googleIdToken) {
-        openAccountModal('Sign in with Google before using AI or making a purchase.');
-        throw new Error('Sign in with Google to continue.');
+        openAccountModal('Please sign in via the top navigation bar.');
+        throw new Error('Please sign in via the top navigation bar.');
       }
       const response = await fetch(`${WORKER_API_URL}${path}`, {
         ...options,
@@ -941,10 +937,7 @@
           googleIdToken = '';
           accountInfo = null;
           updateAccountButton();
-          openAccountModal('Your sign-in expired. Please sign in again.');
-          if (!retriedAfterAuth && await promptGoogleReauthentication()) {
-            return accountRequest(path, options, true);
-          }
+          openAccountModal('Your session has expired. Please sign in again using the top navigation bar.');
         }
         throw new Error(result.message || result.error || `Request failed (${response.status})`);
       }
@@ -953,22 +946,27 @@
 
     function updateAccountButton() {
       const button = document.getElementById('accountButton');
-      button.textContent = accountInfo ? `${accountInfo.freeRemaining} free left today` : 'Sign in';
-      document.getElementById('googleSignInButton').classList.toggle('hidden', Boolean(accountInfo));
+      if (accountInfo) {
+        button.innerHTML = `<i class="fa-solid fa-sparkles text-indigo-500"></i> <span>${accountInfo.freeRemaining} free left</span>`;
+      } else {
+        button.innerHTML = `<i class="fa-solid fa-bolt text-indigo-500"></i> <span>Plans &amp; Quota</span>`;
+      }
+      const signedOutNotice = document.getElementById('accountSignedOutNotice');
+      if (signedOutNotice) signedOutNotice.classList.toggle('hidden', Boolean(accountInfo));
       document.getElementById('accountDetails').classList.toggle('hidden', !accountInfo);
       document.getElementById('accountIdentity').textContent = accountInfo
         ? `Signed in as ${accountInfo.email}`
-        : 'Sign in or create an account with Google.';
+        : 'Sign in using the navigation bar.';
       if (!accountInfo) return;
       document.getElementById('accountQuotaText').textContent =
-        `${accountInfo.freeRemaining} of ${accountInfo.freeLimit} free requests remaining today (IST)`;
+        `${accountInfo.freeRemaining} of ${accountInfo.freeLimit} free daily requests remaining (IST)`;
       document.getElementById('accountPaidText').textContent =
         `${accountInfo.paidRequests} top-up requests available`;
       const hasSubscription = accountInfo.subscriptionExpiresAt &&
         accountInfo.subscriptionRequests > 0;
       document.getElementById('accountSubscriptionText').textContent = hasSubscription
-        ? `${accountInfo.subscriptionRequests} subscription requests available until ${accountInfo.subscriptionExpiresAt}`
-        : 'No active subscription requests.';
+        ? `${accountInfo.subscriptionRequests} subscription requests active until ${accountInfo.subscriptionExpiresAt}`
+        : 'No active monthly subscription.';
       const cancelButton = document.getElementById('cancelSubscriptionButton');
       cancelButton.textContent = accountInfo.subscriptionStatus === 'created'
         ? 'Cancel pending subscription'
@@ -980,21 +978,18 @@
     }
 
     async function refreshAccount() {
-      const result = await accountRequest('/api/me');
-      accountInfo = result.account;
-      updateAccountButton();
-    }
-
-    function signOutGoogle() {
-      googleIdToken = '';
-      accountInfo = null;
-      if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
-      updateAccountButton();
-      renderGoogleSignInButton();
+      try {
+        const result = await accountRequest('/api/me');
+        accountInfo = result.account;
+        updateAccountButton();
+      } catch (err) {
+        updateAccountButton();
+      }
     }
 
     async function openRazorpayCheckout(options, verifyPath, bodyFields) {
       if (!window.Razorpay) throw new Error('Razorpay Checkout could not be loaded.');
+      closeAccountModal();
       const checkout = new Razorpay({
         ...options,
         handler: async response => {
@@ -1008,24 +1003,32 @@
             });
             accountInfo = result.account;
             updateAccountButton();
-            showAccountMessage(result.paymentPending
-              ? 'Your payment is processing. Requests will be added after Razorpay confirms it.'
-              : 'Payment verified. Your account quota has been updated.');
+            openAccountModal(result.paymentPending
+              ? 'Your payment is being confirmed. Requests will be credited shortly.'
+              : 'Payment successful! Your account quota has been updated.');
           } catch (error) {
-            showAccountMessage(`Payment received but could not be verified yet: ${error.message}`);
+            openAccountModal('Payment received. Quota will update automatically once verified.');
           }
         },
         modal: {
-          ondismiss: () => refreshAccount().catch(() => {})
+          backdropclose: false,
+          escape: true,
+          ondismiss: () => {
+            refreshAccount().catch(() => {});
+          }
         }
       });
       checkout.on('payment.failed', response => {
-        showAccountMessage(response.error?.description || 'Payment failed. You have not been charged for an unsuccessful payment.');
+        openAccountModal('Payment could not be completed. You have not been charged.');
       });
       checkout.open();
     }
 
     async function buyTopup() {
+      if (!googleIdToken) {
+        openAccountModal('Please sign in via the top navigation bar before purchasing top-up requests.');
+        return;
+      }
       try {
         const order = await accountRequest('/api/payments/order', { method: 'POST' });
         await openRazorpayCheckout({
@@ -1033,9 +1036,10 @@
           order_id: order.orderId,
           amount: order.amount,
           currency: order.currency,
-          name: 'StudyCraft AI',
-          description: '50 AI requests',
-          prefill: { email: accountInfo.email },
+          name: 'The South Indian School',
+          description: 'StudyCraft AI - 50 Extra Requests',
+          image: window.location.origin + '/logo.png',
+          prefill: { email: accountInfo?.email || '' },
           theme: { color: '#4f46e5' }
         }, '/api/payments/verify-topup', {
           orderId: 'razorpay_order_id',
@@ -1043,19 +1047,24 @@
           signature: 'razorpay_signature'
         });
       } catch (error) {
-        showAccountMessage(error.message);
+        openAccountModal('Unable to start payment checkout. Please try again.');
       }
     }
 
     async function buyMonthlySubscription() {
+      if (!googleIdToken) {
+        openAccountModal('Please sign in via the top navigation bar before starting a subscription.');
+        return;
+      }
       try {
         const subscription = await accountRequest('/api/payments/subscription', { method: 'POST' });
         await openRazorpayCheckout({
           key: subscription.keyId,
           subscription_id: subscription.subscriptionId,
-          name: 'StudyCraft AI',
-          description: '500 AI requests per monthly billing cycle',
-          prefill: { email: accountInfo.email },
+          name: 'The South Indian School',
+          description: 'StudyCraft AI - Monthly Pro (500 Requests)',
+          image: window.location.origin + '/logo.png',
+          prefill: { email: accountInfo?.email || '' },
           theme: { color: '#7c3aed' }
         }, '/api/payments/verify-subscription', {
           subscriptionId: 'razorpay_subscription_id',
@@ -1063,7 +1072,7 @@
           signature: 'razorpay_signature'
         });
       } catch (error) {
-        showAccountMessage(error.message);
+        openAccountModal('Unable to start subscription checkout. Please try again.');
       }
     }
 
@@ -1081,9 +1090,9 @@
         accountInfo = result.account;
         updateAccountButton();
         hideCancelSubscriptionConfirmation();
-        showAccountMessage('Subscription renewal cancelled.');
+        openAccountModal('Subscription renewal has been cancelled.');
       } catch (error) {
-        showAccountMessage(error.message);
+        openAccountModal(error.message);
       }
     }
 
@@ -1131,9 +1140,9 @@
       return fragment;
     }
 
-    async function callGemini(url, payload, retriedAfterAuth = false) {
+    async function callGemini(url, payload) {
       if (!googleIdToken) {
-        openAccountModal('Sign in with Google before using AI.');
+        openAccountModal('Please sign in with Google in the top navigation bar to use AI tools.');
         throw new Error('Sign in with Google to continue.');
       }
       const response = await fetch(url, {
@@ -1151,12 +1160,10 @@
           googleIdToken = '';
           accountInfo = null;
           updateAccountButton();
-          openAccountModal(message);
-          if (!retriedAfterAuth && await promptGoogleReauthentication()) {
-            return callGemini(url, payload, true);
-          }
+          openAccountModal('Your session has expired. Please sign in again using the top navigation bar.');
+        } else if (response.status === 429) {
+          openAccountModal('Daily quota reached. Top up or subscribe for more requests.');
         }
-        if (response.status === 429) openAccountModal(message);
         throw new Error(message);
       }
       const quota = response.headers.get('X-Quota-Status');
@@ -1165,6 +1172,11 @@
           accountInfo = { ...accountInfo, ...JSON.parse(quota) };
           updateAccountButton();
         } catch {
+          // Ignore malformed optional metadata; the AI response is still valid.
+        }
+      }
+      return await response.json();
+    }
           // Ignore malformed optional metadata; the AI response is still valid.
         }
       }
@@ -1636,13 +1648,18 @@
       }
     }
 
-    // Initialize Canvas on load
-    window.onload = function() {
-      initGoogleAuth();
-      loadWorkerConfig();
+    // Initialize on load
+    function initSuite() {
+      syncAuth();
       renderMindMapCanvas();
-      window.addEventListener('resize', renderMindMapCanvas);
-    };
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSuite);
+    } else {
+      initSuite();
+    }
+    window.addEventListener('resize', renderMindMapCanvas);
   </script>
 </body>
 </html>
